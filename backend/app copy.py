@@ -38,7 +38,7 @@ app = Flask(__name__)
 # Cargar variables del archivo .env
 load_dotenv()
 
-app = Flask(__name__, static_folder='static/dist', static_url_path='')
+app = Flask(__name__, static_folder='static', static_url_path='')
 
 # Construir la URI de la base de datos desde variables individuales
 PGHOST = os.getenv('PGHOST')
@@ -46,6 +46,7 @@ PGDATABASE = os.getenv('PGDATABASE')
 PGUSER = os.getenv('PGUSER')
 PGPASSWORD = os.getenv('PGPASSWORD')
 PGPORT = os.getenv('PGPORT')
+
 # Construir la URI de conexión
 DATABASE_URI = f"postgresql+psycopg2://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}"
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
@@ -53,15 +54,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
-
-# Ruta para servir el frontend desde static/dist
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve_frontend(path):
-    print(f"Requested path: {path}")  # Para depurar
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, 'index.html')
 
 def obtener_hora_utc():
     """Obtiene la hora actual en UTC."""
