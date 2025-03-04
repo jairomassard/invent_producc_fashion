@@ -54,6 +54,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# Verificar conexión a la base de datos al iniciar
+with app.app_context():
+    try:
+        db.session.execute(text("SELECT 1"))
+        print("Database connection successful")
+    except Exception as e:
+        print(f"Database connection failed: {str(e)}")
+
 # Ruta para servir el frontend desde static/dist
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -62,6 +70,15 @@ def serve_frontend(path):
     if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
     return send_from_directory(app.static_folder, 'index.html')
+
+# Ruta de depuración para listar archivos en static/dist
+@app.route('/debug-static')
+def debug_static():
+    try:
+        files = os.listdir(app.static_folder)
+        return jsonify({'static_files': files, 'static_folder': app.static_folder})
+    except Exception as e:
+        return jsonify({'error': str(e), 'static_folder': app.static_folder})
 
 def obtener_hora_utc():
     """Obtiene la hora actual en UTC."""
