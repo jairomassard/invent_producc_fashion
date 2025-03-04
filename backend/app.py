@@ -2653,23 +2653,22 @@ def create_app():
     def login():
         try:
             data = request.get_json()
-
+            print(f"DEBUG: Received data: {data}")
             # 📌 Validar datos de entrada
             if not data.get('usuario') or not data.get('password'):
+                print("DEBUG: Missing usuario or password")
                 return jsonify({'message': 'Faltan datos para el inicio de sesión'}), 400
-                
-
+                    
             # 🔍 Buscar usuario en la BD
             usuario = Usuario.query.filter_by(usuario=data['usuario']).first()
+            print(f"DEBUG: Found user: {usuario.usuario if usuario else 'None'}")
             if not usuario or not check_password_hash(usuario.password, data['password']):
-                return jsonify({'message': 'Credenciales incorrectas'}), 401
-
-            # 🚫 Validar usuario y contraseña
-            if not usuario or not check_password_hash(usuario.password, data['password']):
+                print(f"DEBUG: Password match for {data['usuario']}: {check_password_hash(usuario.password, data['password']) if usuario else 'No user'}")
                 return jsonify({'message': 'Credenciales incorrectas'}), 401
 
             # 🚫 Validar si el usuario está activo
             if not usuario.activo:
+                print(f"DEBUG: User {data['usuario']} is inactive")
                 return jsonify({'message': 'Este usuario está inactivo. Contacta al administrador.'}), 409
 
             # Eliminar sesiones activas existentes del usuario
@@ -2684,13 +2683,14 @@ def create_app():
 
             # 🔥 Validar si ya se alcanzó el límite global de sesiones activas
             sesiones_activas_totales = SesionActiva.query.count()
+            print(f"DEBUG: Total active sessions: {sesiones_activas_totales}")
             if sesiones_activas_totales >= MAX_SESIONES_CONCURRENTES:
+                print(f"DEBUG: Max sessions reached: {MAX_SESIONES_CONCURRENTES}")
                 return jsonify({'message': f'Se ha alcanzado el número máximo de sesiones activas permitidas ({MAX_SESIONES_CONCURRENTES}). Intenta más tarde.'}), 403
 
             # 🔑 Generar token y crear nueva sesión activa
             token = generate_token()
             fecha_expiracion = obtener_hora_utc() + timedelta(hours=2)  # ⏳ Expira en 2 horas
-
             nueva_sesion = SesionActiva(
                 usuario_id=usuario.id,
                 token=token,
@@ -2714,8 +2714,8 @@ def create_app():
 
         except Exception as e:
             print(f"Error en login: {str(e)}")
-            db.session.rollback()  # Deshacer cambios en caso de error
-            return jsonify({'error': 'Error al iniciar sesión'}), 500
+            db.session.rollback()
+            return jsonify({'error': f'Error al iniciar sesión: {str(e)}'}), 500
 
 
     @app.route('/api/logout', methods=['POST'])
