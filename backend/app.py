@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, send_from_directory, request, jsonify, make_response
 from flask_cors import CORS
 import csv
 import uuid  # Para generar tokens únicos
@@ -386,7 +386,8 @@ def draw_wrapped_text_traslado(pdf, x, y, text, max_width):
 
 def create_app():
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:J3r0n1m0@localhost/inventarios_db'
+    # Usar la misma URI global en lugar de hardcoded
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)  # Asocia `db` con la app
