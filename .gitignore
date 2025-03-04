@@ -10,12 +10,15 @@ lerna-debug.log*
 # Node.js / Frontend
 node_modules
 .DS_Store
-dist
+/dist  # Cambiado a /dist para que solo afecte la raíz
 dist-ssr
 coverage
 *.local
 /cypress/videos/
 /cypress/screenshots/
+
+# Excepción para backend/static/dist
+!backend/static/dist
 
 # Editor directories and files
 .vscode/*
