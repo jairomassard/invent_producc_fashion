@@ -65,7 +65,7 @@ def obtener_hora_colombia():
     """Obtiene la hora actual en la zona horaria de Colombia."""
     return datetime.now(ZoneInfo("America/Bogota"))
 
-def obtener_hora_colombia(fecha_utc):
+def convertir_a_hora_colombia(fecha_utc):
     """Convierte una fecha UTC a la hora local de Colombia."""
     if fecha_utc:
         return fecha_utc.astimezone(ZoneInfo('America/Bogota'))
