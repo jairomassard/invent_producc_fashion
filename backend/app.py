@@ -387,6 +387,10 @@ def create_app():
     # Usar la misma URI global en lugar de hardcoded
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,  # Verifica conexiones antes de usarlas
+        'connect_args': {'options': '-c timezone=America/Bogota'}  # Configura la zona horaria en cada conexión
+    }
 
     db.init_app(app)  # Asocia `db` con la app
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
