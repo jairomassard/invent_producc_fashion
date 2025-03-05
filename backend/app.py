@@ -144,7 +144,7 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
     nueva_entrega = EntregaParcial(
         orden_produccion_id=orden.id,
         cantidad_entregada=cantidad_entregada,
-        fecha_entrega=obtener_hora_utc(),
+        fecha_entrega=obtener_hora_colombia(),
         comentario=comentario
     )
     db.session.add(nueva_entrega)
@@ -169,7 +169,7 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
                              f"Disponible: {estado_material.cantidad if estado_material else 0}")
 
         estado_material.cantidad -= cantidad_requerida
-        estado_material.ultima_actualizacion = obtener_hora_utc()
+        estado_material.ultima_actualizacion = obtener_hora_colombia()
 
         # Registrar movimiento de salida para cada material
         movimiento_salida_material = RegistroMovimientos(
@@ -179,7 +179,7 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
             bodega_origen_id=bodega_origen_id,
             bodega_destino_id=None,
             cantidad=cantidad_requerida,
-            fecha=obtener_hora_utc(),
+            fecha=obtener_hora_colombia(),
             descripcion=f"Salida de mercancía para creación producto con orden de producción {orden.numero_orden}."
         )
         db.session.add(movimiento_salida_material)
@@ -193,11 +193,11 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
             bodega_id=bodega_destino_id,
             producto_id=producto_id,
             cantidad=0,
-            ultima_actualizacion=obtener_hora_utc()
+            ultima_actualizacion=obtener_hora_colombia()
         )
         db.session.add(estado_destino)
     estado_destino.cantidad += cantidad_entregada
-    estado_destino.ultima_actualizacion = obtener_hora_utc()
+    estado_destino.ultima_actualizacion = obtener_hora_colombia()
 
     # Calcular cantidad pendiente
     entregas_totales = db.session.query(func.sum(EntregaParcial.cantidad_entregada)).filter_by(
@@ -218,7 +218,7 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
         bodega_origen_id=bodega_origen_id,
         bodega_destino_id=bodega_destino_id,  # 🔹 Se mantiene en la misma bodega de producción
         cantidad=cantidad_entregada,
-        fecha=obtener_hora_utc(),
+        fecha=obtener_hora_colombia(),
         descripcion=descripcion
     )
     db.session.add(movimiento_entrada)
@@ -445,11 +445,11 @@ def create_app():
 
             # 🔑 Generar token y crear nueva sesión activa
             token = generate_token()
-            fecha_expiracion = obtener_hora_utc() + timedelta(hours=2)  # ⏳ Expira en 2 horas
+            fecha_expiracion = obtener_hora_colombia() + timedelta(hours=2)  # ⏳ Expira en 2 horas
             nueva_sesion = SesionActiva(
                 usuario_id=usuario.id,
                 token=token,
-                ultima_actividad=obtener_hora_utc(),
+                ultima_actividad=obtener_hora_colombia(),
                 fecha_expiracion=fecha_expiracion
             )
             db.session.add(nueva_sesion)
@@ -500,7 +500,7 @@ def create_app():
             return jsonify({'message': 'Sesión no encontrada o expirada.'}), 401
 
         # Validar tiempo de expiración
-        tiempo_actual = obtener_hora_utc()  # Obtiene la hora actual en UTC
+        tiempo_actual = obtener_hora_colombia()  # Obtiene la hora actual en UTC
         #print(f"DEBUG: Tiempo actual UTC: {tiempo_actual}, Expiración: {sesion.fecha_expiracion}")
 
         # Convertir fecha_expiracion a UTC si es necesario
@@ -973,7 +973,7 @@ def create_app():
                 if fecha_ingreso:
                     fecha_ingreso = datetime.strptime(fecha_ingreso, '%Y-%m-%d %H:%M:%S')
                 else:
-                    fecha_ingreso = obtener_hora_utc()
+                    fecha_ingreso = obtener_hora_colombia()
 
                 producto = Producto.query.filter_by(codigo=codigo).first()
                 if not producto:
@@ -1641,7 +1641,7 @@ def create_app():
                 bodega_origen_id=bodega_origen_obj.id,
                 bodega_destino_id=bodega_destino_obj.id,
                 cantidad=cantidad,
-                fecha=obtener_hora_utc(),
+                fecha=obtener_hora_colombia(),
             )
             db.session.add(nuevo_movimiento)
 
@@ -1728,7 +1728,7 @@ def create_app():
                     bodega_origen_id=bodega_origen_obj.id,
                     bodega_destino_id=bodega_destino_obj.id,
                     cantidad=cantidad,
-                    fecha=obtener_hora_utc(),
+                    fecha=obtener_hora_colombia(),
                     descripcion=f"Traslado de {cantidad} unidades de {codigo} de {bodega_origen} a {bodega_destino}"
                 )
                 db.session.add(nuevo_movimiento)
@@ -2765,7 +2765,7 @@ def create_app():
                 bodega_produccion_id=data['bodega_produccion'],  # Se asigna la bodega seleccionada por el usuario
                 creado_por=data['creado_por'],
                 numero_orden=nuevo_numero_orden,
-                fecha_creacion=obtener_hora_utc()   # Asignar la fecha de creación
+                fecha_creacion=obtener_hora_colombia()   # Asignar la fecha de creación
             )
             db.session.add(nueva_orden)
             db.session.commit()
@@ -2925,16 +2925,16 @@ def create_app():
 
             # ⏳ Registrar fechas y el operador si el estado cambia
             if nuevo_estado == "Lista para Producción" and not orden.fecha_lista_para_produccion:
-                orden.fecha_lista_para_produccion = obtener_hora_utc()
+                orden.fecha_lista_para_produccion = obtener_hora_colombia()
 
             if nuevo_estado == "En Producción":
                 if not orden.fecha_inicio:
-                    orden.fecha_inicio = obtener_hora_utc()
+                    orden.fecha_inicio = obtener_hora_colombia()
                 if usuario_id:
                     orden.en_produccion_por = usuario_id  # Guardar quién inicia la producción
 
             if nuevo_estado == "Finalizada" and not orden.fecha_finalizacion:
-                orden.fecha_finalizacion = obtener_hora_utc()
+                orden.fecha_finalizacion = obtener_hora_colombia()
 
             orden.estado = nuevo_estado
             db.session.commit()
@@ -3032,7 +3032,7 @@ def create_app():
 
             if cantidad_pendiente <= 0:
                 orden.estado = "Finalizada"
-                orden.fecha_finalizacion = obtener_hora_utc()
+                orden.fecha_finalizacion = obtener_hora_colombia()
             else:
                 orden.estado = "En Producción-Parcial"
 
@@ -3072,7 +3072,7 @@ def create_app():
 
             # ✅ Finalizar la orden
             orden.estado = "Finalizada"
-            orden.fecha_finalizacion = obtener_hora_utc()
+            orden.fecha_finalizacion = obtener_hora_colombia()
 
             db.session.commit()
             return jsonify({'message': 'Entrega total registrada y orden finalizada con éxito.'}), 200
@@ -3102,7 +3102,7 @@ def create_app():
 
             # Actualizar el estado de la orden
             orden.estado = "En Producción"
-            orden.fecha_inicio = obtener_hora_utc()
+            orden.fecha_inicio = obtener_hora_colombia()
             db.session.commit()
 
             return jsonify({'message': 'Estado de la orden actualizado a En Producción exitosamente.'}), 200
@@ -3138,7 +3138,7 @@ def create_app():
                 producto_base_id=orden.producto_compuesto_id,
                 cantidad_producida=cantidad_producida,
                 bodega_destino_id=bodega_destino_id,
-                fecha_registro=obtener_hora_utc(),
+                fecha_registro=obtener_hora_colombia(),
                 registrado_por=usuario_id
             )
             db.session.add(detalle)
@@ -3147,7 +3147,7 @@ def create_app():
             orden.cantidad_paquetes -= cantidad_producida
             if orden.cantidad_paquetes == 0:
                 orden.estado = "Finalizada"
-                orden.fecha_finalizacion = obtener_hora_utc()
+                orden.fecha_finalizacion = obtener_hora_colombia()
             else:
                 orden.estado = "En Producción-Parcial"
 
@@ -3192,14 +3192,14 @@ def create_app():
                 bodega_origen_id=orden.bodega_produccion_id,
                 bodega_destino_id=1,  # ID de la bodega final
                 cantidad=0,  # Cantidad en 0
-                fecha=obtener_hora_utc(),
+                fecha=obtener_hora_colombia(),
                 descripcion=f"Producción completa por cierre forzado registrada para la orden {orden.numero_orden}."
             )
             db.session.add(movimiento_entrada)
 
             # Cambiar el estado de la orden a "Finalizada"
             orden.estado = "Finalizada"
-            orden.fecha_finalizacion = obtener_hora_utc()
+            orden.fecha_finalizacion = obtener_hora_colombia()
             orden.comentario_cierre_forzado = comentario_final  # Guardar el comentario
 
             db.session.commit()
@@ -3847,7 +3847,7 @@ def create_app():
 
             # Generar el consecutivo
             consecutivo = generar_consecutivo()
-            fecha_actual = obtener_hora_utc()  # Obtener la fecha UTC una vez para todas las inserciones
+            fecha_actual = obtener_hora_colombia()  # Obtener la fecha UTC una vez para todas las inserciones
 
             for producto_data in data['productos']:
                 # Validar estructura de cada producto
