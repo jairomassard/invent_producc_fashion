@@ -30,9 +30,18 @@ from models import (
 # Añadir al inicio después de los imports
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+# Configurar logging para Railway
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    handlers=[logging.StreamHandler()]  # Enviar logs a stdout
+)
 logger = logging.getLogger(__name__)
 
+# Forzar salida sin buffering para Gunicorn
+import sys
+if not sys.stdout.isatty():  # Detectar entorno de producción
+    sys.stdout = sys.stderr = open('/dev/stdout', 'w', buffering=1)
 
 
 # Cargar variables del archivo .env
