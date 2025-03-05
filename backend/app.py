@@ -476,8 +476,9 @@ def create_app():
 
         if request.endpoint in ['login', 'logout', 'serve_frontend', 'serve_static', 'debug_static']:
             return  # Permitir acceso a rutas públicas sin verificar el token
-
-        # Extraer el token
+        if request.path.startswith('/assets/'):  # Permitir acceso a archivos en /assets/
+            return
+        # Verificación de token para rutas protegidas
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
         #print(f"DEBUG: Token recibido: {token}")
 
