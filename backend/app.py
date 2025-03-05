@@ -478,6 +478,8 @@ def create_app():
             return  # Permitir acceso a rutas públicas sin verificar el token
         if request.path.startswith('/assets/'):  # Permitir acceso a archivos en /assets/
             return
+        if request.path.startswith('/images/'):  # Permitir acceso a archivos en /images/
+            return
         # Verificación de token para rutas protegidas
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
         #print(f"DEBUG: Token recibido: {token}")
