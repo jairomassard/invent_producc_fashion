@@ -61,6 +61,10 @@ def obtener_hora_utc():
     """Obtiene la hora actual en UTC."""
     return datetime.now(timezone.utc)
 
+def obtener_hora_colombia():
+    """Obtiene la hora actual en la zona horaria de Colombia."""
+    return datetime.now(ZoneInfo("America/Bogota"))
+
 def obtener_hora_colombia(fecha_utc):
     """Convierte una fecha UTC a la hora local de Colombia."""
     if fecha_utc:
@@ -390,8 +394,9 @@ def create_app():
     # Actualizar la verificación de conexión
     with app.app_context():
         try:
+            db.session.execute(text("SET timezone = 'America/Bogota';"))
             db.session.execute(text("SELECT 1"))
-            logger.info("Database connection successful")
+            logger.info("Database connection successful with timezone America/Bogota")
         except Exception as e:
             logger.error(f"Database connection failed: {str(e)}")
 
