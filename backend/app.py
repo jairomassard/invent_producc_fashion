@@ -28,13 +28,6 @@ from models import (
     OrdenProduccion, DetalleProduccion, EntregaParcial, AjusteInventarioDetalle
 )
 
-# Configuración del motor de base de datos
-engine = create_engine('postgresql+psycopg2://user:password@localhost/dbname')
-Session = sessionmaker(bind=engine)
-session = Session()
-
-app = Flask(__name__)
-
 # Cargar variables del archivo .env
 load_dotenv()
 
