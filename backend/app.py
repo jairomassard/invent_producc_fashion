@@ -27,6 +27,13 @@ from models import (
     EstadoInventario, RegistroMovimientos, MaterialProducto, 
     OrdenProduccion, DetalleProduccion, EntregaParcial, AjusteInventarioDetalle
 )
+# Añadir al inicio después de los imports
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+
 
 # Cargar variables del archivo .env
 load_dotenv()
@@ -47,13 +54,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# Verificar conexión a la base de datos al iniciar
+
+# Actualizar la verificación de conexión
 with app.app_context():
     try:
         db.session.execute(text("SELECT 1"))
-        print("Database connection successful")
+        logger.info("Database connection successful")
     except Exception as e:
-        print(f"Database connection failed: {str(e)}")
+        logger.error(f"Database connection failed: {str(e)}")
 
 # Ruta para servir el frontend desde static/dist
 @app.route('/', defaults={'path': ''})
@@ -2646,22 +2654,22 @@ def create_app():
     def login():
         try:
             data = request.get_json()
-            print(f"DEBUG: Received data: {data}")
+            logger.debug(f"Received data: {data}")
             # 📌 Validar datos de entrada
             if not data.get('usuario') or not data.get('password'):
-                print("DEBUG: Missing usuario or password")
+                logger.debug("Missing usuario or password")
                 return jsonify({'message': 'Faltan datos para el inicio de sesión'}), 400
                     
             # 🔍 Buscar usuario en la BD
             usuario = Usuario.query.filter_by(usuario=data['usuario']).first()
-            print(f"DEBUG: Found user: {usuario.usuario if usuario else 'None'}")
+            logger.debug(f"Found user: {usuario.usuario if usuario else 'None'}")
             if not usuario or not check_password_hash(usuario.password, data['password']):
-                print(f"DEBUG: Password match for {data['usuario']}: {check_password_hash(usuario.password, data['password']) if usuario else 'No user'}")
+                logger.debug(f"Password match for {data['usuario']}: {check_password_hash(usuario.password, data['password']) if usuario else 'No user'}")
                 return jsonify({'message': 'Credenciales incorrectas'}), 401
 
             # 🚫 Validar si el usuario está activo
             if not usuario.activo:
-                print(f"DEBUG: User {data['usuario']} is inactive")
+                logger.debug(f"User {data['usuario']} is inactive")
                 return jsonify({'message': 'Este usuario está inactivo. Contacta al administrador.'}), 409
 
             # Eliminar sesiones activas existentes del usuario
@@ -2670,15 +2678,15 @@ def create_app():
                 for sesion in sesiones_existentes:
                     db.session.delete(sesion)
                 db.session.commit()
-                print(f"DEBUG: {len(sesiones_existentes)} sesiones antiguas eliminadas para el usuario {usuario.usuario}")
+                logger.debug(f"{len(sesiones_existentes)} sesiones antiguas eliminadas para el usuario {usuario.usuario}")
             else:
-                print(f"DEBUG: No había sesiones activas previas para el usuario {usuario.usuario}")
+                logger.debug(f"No había sesiones activas previas para el usuario {usuario.usuario}")
 
             # 🔥 Validar si ya se alcanzó el límite global de sesiones activas
             sesiones_activas_totales = SesionActiva.query.count()
-            print(f"DEBUG: Total active sessions: {sesiones_activas_totales}")
+            logger.debug(f"Total active sessions: {sesiones_activas_totales}")
             if sesiones_activas_totales >= MAX_SESIONES_CONCURRENTES:
-                print(f"DEBUG: Max sessions reached: {MAX_SESIONES_CONCURRENTES}")
+                logger.debug(f"Max sessions reached: {MAX_SESIONES_CONCURRENTES}")
                 return jsonify({'message': f'Se ha alcanzado el número máximo de sesiones activas permitidas ({MAX_SESIONES_CONCURRENTES}). Intenta más tarde.'}), 403
 
             # 🔑 Generar token y crear nueva sesión activa
@@ -2692,7 +2700,7 @@ def create_app():
             )
             db.session.add(nueva_sesion)
             db.session.commit()
-            print(f"DEBUG: Nueva sesión creada para {usuario.usuario}. Expiración: {nueva_sesion.fecha_expiracion}")
+            logger.debug(f"Nueva sesión creada para {usuario.usuario}. Expiración: {nueva_sesion.fecha_expiracion}")
 
             # ✅ Respuesta exitosa
             return jsonify({
@@ -2706,7 +2714,7 @@ def create_app():
             }), 200
 
         except Exception as e:
-            print(f"Error en login: {str(e)}")
+            logger.error(f"Error en login: {str(e)}")
             db.session.rollback()
             return jsonify({'error': f'Error al iniciar sesión: {str(e)}'}), 500
 
