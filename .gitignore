@@ -39,6 +39,7 @@ __pycache__/
 .Python
 env/
 env_inventarios
+env_inventarios/
 venv/
 *.env
 

@@ -569,10 +569,11 @@ def create_app():
 
     return app
 
+# Crear la aplicación directamente en el nivel superior
+app = create_app()
 
 if __name__ == '__main__':
-    #prueba_horas()  # Dejamos esto comentado como en tu original
-    app = create_app()
+        
     with app.app_context():
         db.create_all()  # Crea las tablas si no existen
     port = int(os.getenv('PORT', 5000))  # Usa $PORT si existe (Railway), o 5000 por defecto
