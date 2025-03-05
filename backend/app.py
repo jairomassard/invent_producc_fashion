@@ -64,33 +64,6 @@ db.init_app(app)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 
-# Actualizar la verificación de conexión
-with app.app_context():
-    try:
-        db.session.execute(text("SELECT 1"))
-        logger.info("Database connection successful")
-    except Exception as e:
-        logger.error(f"Database connection failed: {str(e)}")
-
-# Ruta para servir el frontend desde static/dist
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>', methods=['GET'])
-def serve_frontend(path):
-    if path.startswith('api/'):
-        return app.handle_http_exception(404)
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, 'index.html')
-
-# Ruta de depuración para listar archivos en static/dist
-@app.route('/debug-static')
-def debug_static():
-    try:
-        files = os.listdir(app.static_folder)
-        return jsonify({'static_files': files, 'static_folder': app.static_folder})
-    except Exception as e:
-        return jsonify({'error': str(e), 'static_folder': app.static_folder})
-
 def obtener_hora_utc():
     """Obtiene la hora actual en UTC."""
     return datetime.now(timezone.utc)
@@ -420,6 +393,87 @@ def create_app():
 
     db.init_app(app)  # Asocia `db` con la app
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+    # Actualizar la verificación de conexión
+    with app.app_context():
+        try:
+            db.session.execute(text("SELECT 1"))
+            logger.info("Database connection successful")
+        except Exception as e:
+            logger.error(f"Database connection failed: {str(e)}")
+
+
+    # Rutas API (prioridad alta)
+    
+    #ENDPOINTS LOGIN
+    @app.route('/api/login', methods=['POST'])
+    def login():
+        try:
+            data = request.get_json()
+            logger.debug(f"Received data: {data}")
+            # 📌 Validar datos de entrada
+            if not data.get('usuario') or not data.get('password'):
+                logger.debug("Missing usuario or password")
+                return jsonify({'message': 'Faltan datos para el inicio de sesión'}), 400
+                    
+            # 🔍 Buscar usuario en la BD
+            usuario = Usuario.query.filter_by(usuario=data['usuario']).first()
+            logger.debug(f"Found user: {usuario.usuario if usuario else 'None'}")
+            if not usuario or not check_password_hash(usuario.password, data['password']):
+                logger.debug(f"Password match for {data['usuario']}: {check_password_hash(usuario.password, data['password']) if usuario else 'No user'}")
+                return jsonify({'message': 'Credenciales incorrectas'}), 401
+
+            # 🚫 Validar si el usuario está activo
+            if not usuario.activo:
+                logger.debug(f"User {data['usuario']} is inactive")
+                return jsonify({'message': 'Este usuario está inactivo. Contacta al administrador.'}), 409
+
+            # Eliminar sesiones activas existentes del usuario
+            sesiones_existentes = SesionActiva.query.filter_by(usuario_id=usuario.id).all()
+            if sesiones_existentes:
+                for sesion in sesiones_existentes:
+                    db.session.delete(sesion)
+                db.session.commit()
+                logger.debug(f"{len(sesiones_existentes)} sesiones antiguas eliminadas para el usuario {usuario.usuario}")
+            else:
+                logger.debug(f"No había sesiones activas previas para el usuario {usuario.usuario}")
+
+            # 🔥 Validar si ya se alcanzó el límite global de sesiones activas
+            sesiones_activas_totales = SesionActiva.query.count()
+            logger.debug(f"Total active sessions: {sesiones_activas_totales}")
+            if sesiones_activas_totales >= MAX_SESIONES_CONCURRENTES:
+                logger.debug(f"Max sessions reached: {MAX_SESIONES_CONCURRENTES}")
+                return jsonify({'message': f'Se ha alcanzado el número máximo de sesiones activas permitidas ({MAX_SESIONES_CONCURRENTES}). Intenta más tarde.'}), 403
+
+            # 🔑 Generar token y crear nueva sesión activa
+            token = generate_token()
+            fecha_expiracion = obtener_hora_utc() + timedelta(hours=2)  # ⏳ Expira en 2 horas
+            nueva_sesion = SesionActiva(
+                usuario_id=usuario.id,
+                token=token,
+                ultima_actividad=obtener_hora_utc(),
+                fecha_expiracion=fecha_expiracion
+            )
+            db.session.add(nueva_sesion)
+            db.session.commit()
+            logger.debug(f"Nueva sesión creada para {usuario.usuario}. Expiración: {nueva_sesion.fecha_expiracion}")
+
+            # ✅ Respuesta exitosa
+            return jsonify({
+                'id': usuario.id,
+                'usuario': usuario.usuario,
+                'nombres': usuario.nombres,
+                'apellidos': usuario.apellidos,
+                'tipo_usuario': usuario.tipo_usuario,
+                'token': token,
+                'message': 'Inicio de sesión exitoso'
+            }), 200
+
+        except Exception as e:
+            logger.error(f"Error en login: {str(e)}")
+            db.session.rollback()
+            return jsonify({'error': f'Error al iniciar sesión: {str(e)}'}), 500
+
 
     @app.route('/')
     def home():
@@ -2659,74 +2713,6 @@ def create_app():
             print(f"Error al obtener usuarios: {str(e)}")
             return jsonify({'error': 'Error al obtener usuarios'}), 500
 
-    #ENDPOINTS LOGIN
-    @app.route('/api/login', methods=['POST'])
-    def login():
-        try:
-            data = request.get_json()
-            logger.debug(f"Received data: {data}")
-            # 📌 Validar datos de entrada
-            if not data.get('usuario') or not data.get('password'):
-                logger.debug("Missing usuario or password")
-                return jsonify({'message': 'Faltan datos para el inicio de sesión'}), 400
-                    
-            # 🔍 Buscar usuario en la BD
-            usuario = Usuario.query.filter_by(usuario=data['usuario']).first()
-            logger.debug(f"Found user: {usuario.usuario if usuario else 'None'}")
-            if not usuario or not check_password_hash(usuario.password, data['password']):
-                logger.debug(f"Password match for {data['usuario']}: {check_password_hash(usuario.password, data['password']) if usuario else 'No user'}")
-                return jsonify({'message': 'Credenciales incorrectas'}), 401
-
-            # 🚫 Validar si el usuario está activo
-            if not usuario.activo:
-                logger.debug(f"User {data['usuario']} is inactive")
-                return jsonify({'message': 'Este usuario está inactivo. Contacta al administrador.'}), 409
-
-            # Eliminar sesiones activas existentes del usuario
-            sesiones_existentes = SesionActiva.query.filter_by(usuario_id=usuario.id).all()
-            if sesiones_existentes:
-                for sesion in sesiones_existentes:
-                    db.session.delete(sesion)
-                db.session.commit()
-                logger.debug(f"{len(sesiones_existentes)} sesiones antiguas eliminadas para el usuario {usuario.usuario}")
-            else:
-                logger.debug(f"No había sesiones activas previas para el usuario {usuario.usuario}")
-
-            # 🔥 Validar si ya se alcanzó el límite global de sesiones activas
-            sesiones_activas_totales = SesionActiva.query.count()
-            logger.debug(f"Total active sessions: {sesiones_activas_totales}")
-            if sesiones_activas_totales >= MAX_SESIONES_CONCURRENTES:
-                logger.debug(f"Max sessions reached: {MAX_SESIONES_CONCURRENTES}")
-                return jsonify({'message': f'Se ha alcanzado el número máximo de sesiones activas permitidas ({MAX_SESIONES_CONCURRENTES}). Intenta más tarde.'}), 403
-
-            # 🔑 Generar token y crear nueva sesión activa
-            token = generate_token()
-            fecha_expiracion = obtener_hora_utc() + timedelta(hours=2)  # ⏳ Expira en 2 horas
-            nueva_sesion = SesionActiva(
-                usuario_id=usuario.id,
-                token=token,
-                ultima_actividad=obtener_hora_utc(),
-                fecha_expiracion=fecha_expiracion
-            )
-            db.session.add(nueva_sesion)
-            db.session.commit()
-            logger.debug(f"Nueva sesión creada para {usuario.usuario}. Expiración: {nueva_sesion.fecha_expiracion}")
-
-            # ✅ Respuesta exitosa
-            return jsonify({
-                'id': usuario.id,
-                'usuario': usuario.usuario,
-                'nombres': usuario.nombres,
-                'apellidos': usuario.apellidos,
-                'tipo_usuario': usuario.tipo_usuario,
-                'token': token,
-                'message': 'Inicio de sesión exitoso'
-            }), 200
-
-        except Exception as e:
-            logger.error(f"Error en login: {str(e)}")
-            db.session.rollback()
-            return jsonify({'error': f'Error al iniciar sesión: {str(e)}'}), 500
 
 
     @app.route('/api/logout', methods=['POST'])
@@ -4189,6 +4175,26 @@ def create_app():
             print(f"Error al generar PDF de ajustes: {str(e)}")
             return jsonify({'error': 'Ocurrió un error al generar el PDF.'}), 500
 
+
+    # Rutas estáticas (prioridad baja)
+    @app.route('/')
+    def serve_frontend():
+        return send_from_directory(app.static_folder, 'index.html')
+
+    @app.route('/<path:path>', methods=['GET'])
+    def serve_static(path):
+        full_path = os.path.join(app.static_folder, path)
+        if os.path.exists(full_path) and not path.startswith('api/'):
+            return send_from_directory(app.static_folder, path)
+        return send_from_directory(app.static_folder, 'index.html')
+
+    @app.route('/debug-static')
+    def debug_static():
+        try:
+            files = os.listdir(app.static_folder)
+            return jsonify({'static_files': files, 'static_folder': app.static_folder})
+        except Exception as e:
+            return jsonify({'error': str(e), 'static_folder': app.static_folder})
 
     return app
 
