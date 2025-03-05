@@ -64,8 +64,8 @@ def obtener_hora_utc():
     return datetime.now(timezone.utc)
 
 def obtener_hora_colombia():
-    """Obtiene la hora actual en la zona horaria de Colombia."""
-    return datetime.now(ZoneInfo("America/Bogota"))
+    """Obtiene la hora actual en la zona horaria de Colombia sin zona horaria."""
+    return datetime.now(ZoneInfo("America/Bogota")).replace(tzinfo=None)
 
 def convertir_a_hora_colombia(fecha_utc):
     """Convierte una fecha UTC a la hora local de Colombia."""
@@ -386,30 +386,16 @@ def draw_wrapped_text_traslado(pdf, x, y, text, max_width):
 
 def create_app():
     app = Flask(__name__, static_folder='static/dist', static_url_path='')
-    # Usar la misma URI global en lugar de hardcoded
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True
-    }
 
-    db.init_app(app)  # Asocia `db` con la app
+    db.init_app(app)
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-    # Configurar la zona horaria en cada conexión nueva
-    @event.listens_for(Engine, "connect")
-    def set_timezone(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("SET timezone = 'America/Bogota';")
-        cursor.close()
-
-
-    # Actualizar la verificación de conexión
     with app.app_context():
         try:
-            
             db.session.execute(text("SELECT 1"))
-            logger.info("Database connection successful with timezone America/Bogota")
+            logger.info("Database connection successful")
         except Exception as e:
             logger.error(f"Database connection failed: {str(e)}")
 
@@ -458,12 +444,12 @@ def create_app():
 
             # 🔑 Generar token y crear nueva sesión activa
             token = generate_token()
-            fecha_expiracion = obtener_hora_colombia() + timedelta(hours=2)  # ⏳ Expira en 2 horas
+           
             nueva_sesion = SesionActiva(
                 usuario_id=usuario.id,
                 token=token,
                 ultima_actividad=obtener_hora_colombia(),
-                fecha_expiracion=fecha_expiracion
+                fecha_expiracion=obtener_hora_colombia() + timedelta(hours=2)  # ⏳ Expira en 2 horas
             )
             db.session.add(nueva_sesion)
             db.session.commit()
