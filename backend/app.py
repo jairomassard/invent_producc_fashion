@@ -475,10 +475,6 @@ def create_app():
             return jsonify({'error': f'Error al iniciar sesión: {str(e)}'}), 500
 
 
-    @app.route('/')
-    def home():
-        return {'message': 'Backend funcionando correctamente'}
-
     # Middleware: Verificación de sesión activa
     @app.before_request
     def verificar_sesion_activa():
