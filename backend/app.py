@@ -472,7 +472,6 @@ def create_app():
             return jsonify({'error': f'Error al iniciar sesión: {str(e)}'}), 500
 
 
-    # Middleware: Verificación de sesión activa
     @app.before_request
     def verificar_sesion_activa():
         if request.method == 'OPTIONS':
@@ -484,6 +483,7 @@ def create_app():
             return
         if request.path.startswith('/images/'):  # Permitir acceso a archivos en /images/
             return
+
         # Verificación de token para rutas protegidas
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
         #print(f"DEBUG: Token recibido: {token}")
@@ -499,16 +499,10 @@ def create_app():
             return jsonify({'message': 'Sesión no encontrada o expirada.'}), 401
 
         # Validar tiempo de expiración
-        tiempo_actual = obtener_hora_colombia()  # Obtiene la hora actual en UTC
-        #print(f"DEBUG: Tiempo actual UTC: {tiempo_actual}, Expiración: {sesion.fecha_expiracion}")
+        tiempo_actual = obtener_hora_colombia()  # Hora local de Colombia, offset-naive
+        #print(f"DEBUG: Tiempo actual: {tiempo_actual}, Expiración: {sesion.fecha_expiracion}")
 
-        # Convertir fecha_expiracion a UTC si es necesario
-        if sesion.fecha_expiracion.tzinfo is None:
-            sesion.fecha_expiracion = sesion.fecha_expiracion.replace(tzinfo=timezone.utc)
-        else:
-            sesion.fecha_expiracion = sesion.fecha_expiracion.astimezone(timezone.utc)
-
-        # Comparar las fechas
+        # Comparar directamente, ambos son offset-naive
         if sesion.fecha_expiracion < tiempo_actual:
             print("DEBUG: Sesión expirada. Eliminando sesión.")
             db.session.delete(sesion)
@@ -516,8 +510,8 @@ def create_app():
             return jsonify({'message': 'Sesión expirada. Por favor, inicia sesión nuevamente.'}), 401
 
         # Actualizar última actividad y extender la sesión
-        sesion.ultima_actividad = tiempo_actual
-        sesion.fecha_expiracion = tiempo_actual + timedelta(hours=2)  # Extiende la sesión 1 hora más
+        sesion.ultima_actividad = obtener_hora_colombia()
+        sesion.fecha_expiracion = obtener_hora_colombia() + timedelta(hours=2)  # Extiende la sesión 2 horas
         #print(f"DEBUG: Última actividad actualizada. Nueva expiración: {sesion.fecha_expiracion}")
         db.session.commit()
 
