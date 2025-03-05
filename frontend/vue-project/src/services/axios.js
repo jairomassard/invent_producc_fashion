@@ -1,13 +1,15 @@
 import axios from 'axios';
 
+
 const apiClient = axios.create({
-    baseURL: 'http://127.0.0.1:5000', // Cambia si tu backend usa otra URL
-    //baseURL: `${window.location.protocol}//${window.location.hostname}:5000`,
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000', // Usa la variable de Vite
     timeout: 5000,
     headers: {
         'Content-Type': 'application/json',
     },
 });
+
+
 
 // Interceptor para agregar el token a cada solicitud
 apiClient.interceptors.request.use(
