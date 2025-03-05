@@ -19,6 +19,8 @@ from sqlalchemy.sql import func
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 from sqlalchemy import create_engine, func, case
 from werkzeug.security import generate_password_hash
 from werkzeug.security import check_password_hash
@@ -388,17 +390,24 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'pool_pre_ping': True,  # Verifica conexiones antes de usarlas
-        'connect_args': {'options': '-c timezone=America/Bogota'}  # Configura la zona horaria en cada conexión
+        'pool_pre_ping': True
     }
 
     db.init_app(app)  # Asocia `db` con la app
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+    # Configurar la zona horaria en cada conexión nueva
+    @event.listens_for(Engine, "connect")
+    def set_timezone(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("SET timezone = 'America/Bogota';")
+        cursor.close()
+
+
     # Actualizar la verificación de conexión
     with app.app_context():
         try:
-            db.session.execute(text("SET timezone = 'America/Bogota';"))
+            
             db.session.execute(text("SELECT 1"))
             logger.info("Database connection successful with timezone America/Bogota")
         except Exception as e:
