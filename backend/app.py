@@ -74,10 +74,10 @@ with app.app_context():
 
 # Ruta para servir el frontend desde static/dist
 @app.route('/', defaults={'path': ''})
-@app.route('/<path:path>', methods=['GET'])  # Limita a GET para rutas estáticas
+@app.route('/<path:path>', methods=['GET'])
 def serve_frontend(path):
-    if path.startswith('api/'):  # Evita que las rutas API sean capturadas
-        return app.handle_http_exception(404)  # O deja que Flask maneje
+    if path.startswith('api/'):
+        return app.handle_http_exception(404)
     if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
     return send_from_directory(app.static_folder, 'index.html')
