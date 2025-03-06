@@ -47,8 +47,6 @@ if not sys.stdout.isatty():  # Detectar entorno de producción
 # Cargar variables del archivo .env
 load_dotenv()
 
-app = Flask(__name__, static_folder='static/dist', static_url_path='')
-
 # Construir la URI de la base de datos desde variables individuales
 PGHOST = os.getenv('PGHOST')
 PGDATABASE = os.getenv('PGDATABASE')
@@ -57,11 +55,6 @@ PGPASSWORD = os.getenv('PGPASSWORD')
 PGPORT = os.getenv('PGPORT')
 # Construir la URI de conexión
 DATABASE_URI = f"postgresql+psycopg2://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}"
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db.init_app(app)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 
 def obtener_hora_utc():
@@ -386,7 +379,7 @@ def draw_wrapped_text_traslado(pdf, x, y, text, max_width):
 
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='static/dist', static_url_path='')
     # Usar la misma URI global en lugar de hardcoded
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -397,6 +390,7 @@ def create_app():
     # Actualizar la verificación de conexión
     with app.app_context():
         try:
+            db.session.execute(text("SET timezone = 'America/Bogota';"))
             db.session.execute(text("SELECT 1"))
             logger.info("Database connection successful")
         except Exception as e:
@@ -481,10 +475,13 @@ def create_app():
         if request.method == 'OPTIONS':
             return '', 200  # Respuesta exitosa a las solicitudes preflight
 
-        if request.endpoint in ['login', 'home', 'static']:
+        if request.endpoint in ['login', 'logout', 'serve_frontend', 'serve_static', 'debug_static']:
             return  # Permitir acceso a rutas públicas sin verificar el token
-
-        # Extraer el token
+        if request.path.startswith('/assets/'):  # Permitir acceso a archivos en /assets/
+            return
+        if request.path.startswith('/images/'):  # Permitir acceso a archivos en /images/
+            return
+        # Verificación de token para rutas protegidas
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
         #print(f"DEBUG: Token recibido: {token}")
 
@@ -521,6 +518,26 @@ def create_app():
         #print(f"DEBUG: Última actividad actualizada. Nueva expiración: {sesion.fecha_expiracion}")
         db.session.commit()
 
+
+
+
+    @app.route('/api/logout', methods=['POST'])
+    def logout():
+        try:
+            token = request.headers.get('Authorization').replace('Bearer ', '')
+            if not token:
+                return jsonify({"message": "Token no proporcionado"}), 400
+
+            sesion = SesionActiva.query.filter_by(token=token).first()
+            if not sesion:
+                return jsonify({"message": "Sesión no encontrada"}), 404
+
+            db.session.delete(sesion)
+            db.session.commit()
+            return jsonify({"message": "Sesión cerrada correctamente"}), 200
+        except Exception as e:
+            print(f"Error al cerrar sesión: {str(e)}")
+            return jsonify({"error": "Error al cerrar sesión"}), 500
 
 
     @app.route('/api/productos', methods=['GET', 'POST'])
@@ -2710,26 +2727,6 @@ def create_app():
             return jsonify({'error': 'Error al obtener usuarios'}), 500
 
 
-
-    @app.route('/api/logout', methods=['POST'])
-    def logout():
-        try:
-            token = request.headers.get('Authorization').replace('Bearer ', '')
-            if not token:
-                return jsonify({"message": "Token no proporcionado"}), 400
-
-            sesion = SesionActiva.query.filter_by(token=token).first()
-            if not sesion:
-                return jsonify({"message": "Sesión no encontrada"}), 404
-
-            db.session.delete(sesion)
-            db.session.commit()
-            return jsonify({"message": "Sesión cerrada correctamente"}), 200
-        except Exception as e:
-            print(f"Error al cerrar sesión: {str(e)}")
-            return jsonify({"error": "Error al cerrar sesión"}), 500
-
-
     #ENDPOINTS RELATIVOS A PRODUCCION
 
     # Cargar una orden de producción
@@ -3820,13 +3817,6 @@ def create_app():
             print(f"Error al obtener órdenes para el operador: {str(e)}")
             return jsonify({'error': 'Ocurrió un error al obtener las órdenes para el operador.'}), 500
 
-    @app.after_request
-    def after_request(response):
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
-        return response
-
 
     @app.route('/api/ajuste-inventario', methods=['POST'])
     def ajuste_inventario():
@@ -4171,6 +4161,14 @@ def create_app():
             print(f"Error al generar PDF de ajustes: {str(e)}")
             return jsonify({'error': 'Ocurrió un error al generar el PDF.'}), 500
 
+ 
+    @app.after_request
+    def after_request(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+        return response
+
 
     # Rutas estáticas (prioridad baja)
     @app.route('/')
@@ -4194,10 +4192,11 @@ def create_app():
 
     return app
 
+# Crear la aplicación directamente en el nivel superior
+app = create_app()
 
 if __name__ == '__main__':
-    #prueba_horas()  # Dejamos esto comentado como en tu original
-    app = create_app()
+        
     with app.app_context():
         db.create_all()  # Crea las tablas si no existen
     port = int(os.getenv('PORT', 5000))  # Usa $PORT si existe (Railway), o 5000 por defecto

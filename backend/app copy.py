@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, make_response
+from flask import Flask, send_from_directory, request, jsonify, make_response
 from flask_cors import CORS
 import csv
 import uuid  # Para generar tokens únicos
@@ -19,6 +19,8 @@ from sqlalchemy.sql import func
 from zoneinfo import ZoneInfo
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 from sqlalchemy import create_engine, func, case
 from werkzeug.security import generate_password_hash
 from werkzeug.security import check_password_hash
@@ -27,18 +29,25 @@ from models import (
     EstadoInventario, RegistroMovimientos, MaterialProducto, 
     OrdenProduccion, DetalleProduccion, EntregaParcial, AjusteInventarioDetalle
 )
+# Añadir al inicio después de los imports
+import logging
 
-# Configuración del motor de base de datos
-engine = create_engine('postgresql+psycopg2://user:password@localhost/dbname')
-Session = sessionmaker(bind=engine)
-session = Session()
+# Configurar logging para Railway
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    handlers=[logging.StreamHandler()]  # Enviar logs a stdout
+)
+logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+# Forzar salida sin buffering para Gunicorn
+import sys
+if not sys.stdout.isatty():  # Detectar entorno de producción
+    sys.stdout = sys.stderr = open('/dev/stdout', 'w', buffering=1)
+
 
 # Cargar variables del archivo .env
 load_dotenv()
-
-app = Flask(__name__, static_folder='static', static_url_path='')
 
 # Construir la URI de la base de datos desde variables individuales
 PGHOST = os.getenv('PGHOST')
@@ -46,20 +55,19 @@ PGDATABASE = os.getenv('PGDATABASE')
 PGUSER = os.getenv('PGUSER')
 PGPASSWORD = os.getenv('PGPASSWORD')
 PGPORT = os.getenv('PGPORT')
-
 # Construir la URI de conexión
 DATABASE_URI = f"postgresql+psycopg2://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}"
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db.init_app(app)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 def obtener_hora_utc():
     """Obtiene la hora actual en UTC."""
     return datetime.now(timezone.utc)
 
-def obtener_hora_colombia(fecha_utc):
+def obtener_hora_colombia():
+    """Obtiene la hora actual en la zona horaria de Colombia sin zona horaria."""
+    return datetime.now(ZoneInfo("America/Bogota")).replace(tzinfo=None)
+
+def convertir_a_hora_colombia(fecha_utc):
     """Convierte una fecha UTC a la hora local de Colombia."""
     if fecha_utc:
         return fecha_utc.astimezone(ZoneInfo('America/Bogota'))
@@ -138,7 +146,7 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
     nueva_entrega = EntregaParcial(
         orden_produccion_id=orden.id,
         cantidad_entregada=cantidad_entregada,
-        fecha_entrega=obtener_hora_utc(),
+        fecha_entrega=obtener_hora_colombia(),
         comentario=comentario
     )
     db.session.add(nueva_entrega)
@@ -163,7 +171,7 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
                              f"Disponible: {estado_material.cantidad if estado_material else 0}")
 
         estado_material.cantidad -= cantidad_requerida
-        estado_material.ultima_actualizacion = obtener_hora_utc()
+        estado_material.ultima_actualizacion = obtener_hora_colombia()
 
         # Registrar movimiento de salida para cada material
         movimiento_salida_material = RegistroMovimientos(
@@ -173,7 +181,7 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
             bodega_origen_id=bodega_origen_id,
             bodega_destino_id=None,
             cantidad=cantidad_requerida,
-            fecha=obtener_hora_utc(),
+            fecha=obtener_hora_colombia(),
             descripcion=f"Salida de mercancía para creación producto con orden de producción {orden.numero_orden}."
         )
         db.session.add(movimiento_salida_material)
@@ -187,11 +195,11 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
             bodega_id=bodega_destino_id,
             producto_id=producto_id,
             cantidad=0,
-            ultima_actualizacion=obtener_hora_utc()
+            ultima_actualizacion=obtener_hora_colombia()
         )
         db.session.add(estado_destino)
     estado_destino.cantidad += cantidad_entregada
-    estado_destino.ultima_actualizacion = obtener_hora_utc()
+    estado_destino.ultima_actualizacion = obtener_hora_colombia()
 
     # Calcular cantidad pendiente
     entregas_totales = db.session.query(func.sum(EntregaParcial.cantidad_entregada)).filter_by(
@@ -212,7 +220,7 @@ def registrar_entrega_parcial_logic(orden_id, cantidad_entregada, comentario):
         bodega_origen_id=bodega_origen_id,
         bodega_destino_id=bodega_destino_id,  # 🔹 Se mantiene en la misma bodega de producción
         cantidad=cantidad_entregada,
-        fecha=obtener_hora_utc(),
+        fecha=obtener_hora_colombia(),
         descripcion=descripcion
     )
     db.session.add(movimiento_entrada)
@@ -377,27 +385,106 @@ def draw_wrapped_text_traslado(pdf, x, y, text, max_width):
 
 
 def create_app():
-    app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:J3r0n1m0@localhost/inventarios_db'
+    app = Flask(__name__, static_folder='static/dist', static_url_path='')
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    db.init_app(app)  # Asocia `db` con la app
+    db.init_app(app)
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-    @app.route('/')
-    def home():
-        return {'message': 'Backend funcionando correctamente'}
+    with app.app_context():
+        try:
+            db.session.execute(text("SELECT 1"))
+            logger.info("Database connection successful")
+        except Exception as e:
+            logger.error(f"Database connection failed: {str(e)}")
 
-    # Middleware: Verificación de sesión activa
+
+    # Rutas API (prioridad alta)
+    
+    #ENDPOINTS LOGIN
+    @app.route('/api/login', methods=['POST'])
+    def login():
+        try:
+            data = request.get_json()
+            logger.debug(f"Received data: {data}")
+            # 📌 Validar datos de entrada
+            if not data.get('usuario') or not data.get('password'):
+                logger.debug("Missing usuario or password")
+                return jsonify({'message': 'Faltan datos para el inicio de sesión'}), 400
+                    
+            # 🔍 Buscar usuario en la BD
+            usuario = Usuario.query.filter_by(usuario=data['usuario']).first()
+            logger.debug(f"Found user: {usuario.usuario if usuario else 'None'}")
+            if not usuario or not check_password_hash(usuario.password, data['password']):
+                logger.debug(f"Password match for {data['usuario']}: {check_password_hash(usuario.password, data['password']) if usuario else 'No user'}")
+                return jsonify({'message': 'Credenciales incorrectas'}), 401
+
+            # 🚫 Validar si el usuario está activo
+            if not usuario.activo:
+                logger.debug(f"User {data['usuario']} is inactive")
+                return jsonify({'message': 'Este usuario está inactivo. Contacta al administrador.'}), 409
+
+            # Eliminar sesiones activas existentes del usuario
+            sesiones_existentes = SesionActiva.query.filter_by(usuario_id=usuario.id).all()
+            if sesiones_existentes:
+                for sesion in sesiones_existentes:
+                    db.session.delete(sesion)
+                db.session.commit()
+                logger.debug(f"{len(sesiones_existentes)} sesiones antiguas eliminadas para el usuario {usuario.usuario}")
+            else:
+                logger.debug(f"No había sesiones activas previas para el usuario {usuario.usuario}")
+
+            # 🔥 Validar si ya se alcanzó el límite global de sesiones activas
+            sesiones_activas_totales = SesionActiva.query.count()
+            logger.debug(f"Total active sessions: {sesiones_activas_totales}")
+            if sesiones_activas_totales >= MAX_SESIONES_CONCURRENTES:
+                logger.debug(f"Max sessions reached: {MAX_SESIONES_CONCURRENTES}")
+                return jsonify({'message': f'Se ha alcanzado el número máximo de sesiones activas permitidas ({MAX_SESIONES_CONCURRENTES}). Intenta más tarde.'}), 403
+
+            # 🔑 Generar token y crear nueva sesión activa
+            token = generate_token()
+           
+            nueva_sesion = SesionActiva(
+                usuario_id=usuario.id,
+                token=token,
+                ultima_actividad=obtener_hora_colombia(),
+                fecha_expiracion=obtener_hora_colombia() + timedelta(hours=2)  # ⏳ Expira en 2 horas
+            )
+            db.session.add(nueva_sesion)
+            db.session.commit()
+            logger.debug(f"Nueva sesión creada para {usuario.usuario}. Expiración: {nueva_sesion.fecha_expiracion}")
+
+            # ✅ Respuesta exitosa
+            return jsonify({
+                'id': usuario.id,
+                'usuario': usuario.usuario,
+                'nombres': usuario.nombres,
+                'apellidos': usuario.apellidos,
+                'tipo_usuario': usuario.tipo_usuario,
+                'token': token,
+                'message': 'Inicio de sesión exitoso'
+            }), 200
+
+        except Exception as e:
+            logger.error(f"Error en login: {str(e)}")
+            db.session.rollback()
+            return jsonify({'error': f'Error al iniciar sesión: {str(e)}'}), 500
+
+
     @app.before_request
     def verificar_sesion_activa():
         if request.method == 'OPTIONS':
             return '', 200  # Respuesta exitosa a las solicitudes preflight
 
-        if request.endpoint in ['login', 'home', 'static']:
+        if request.endpoint in ['login', 'logout', 'serve_frontend', 'serve_static', 'debug_static']:
             return  # Permitir acceso a rutas públicas sin verificar el token
+        if request.path.startswith('/assets/'):  # Permitir acceso a archivos en /assets/
+            return
+        if request.path.startswith('/images/'):  # Permitir acceso a archivos en /images/
+            return
 
-        # Extraer el token
+        # Verificación de token para rutas protegidas
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
         #print(f"DEBUG: Token recibido: {token}")
 
@@ -412,16 +499,10 @@ def create_app():
             return jsonify({'message': 'Sesión no encontrada o expirada.'}), 401
 
         # Validar tiempo de expiración
-        tiempo_actual = obtener_hora_utc()  # Obtiene la hora actual en UTC
-        #print(f"DEBUG: Tiempo actual UTC: {tiempo_actual}, Expiración: {sesion.fecha_expiracion}")
+        tiempo_actual = obtener_hora_colombia()  # Hora local de Colombia, offset-naive
+        #print(f"DEBUG: Tiempo actual: {tiempo_actual}, Expiración: {sesion.fecha_expiracion}")
 
-        # Convertir fecha_expiracion a UTC si es necesario
-        if sesion.fecha_expiracion.tzinfo is None:
-            sesion.fecha_expiracion = sesion.fecha_expiracion.replace(tzinfo=timezone.utc)
-        else:
-            sesion.fecha_expiracion = sesion.fecha_expiracion.astimezone(timezone.utc)
-
-        # Comparar las fechas
+        # Comparar directamente, ambos son offset-naive
         if sesion.fecha_expiracion < tiempo_actual:
             print("DEBUG: Sesión expirada. Eliminando sesión.")
             db.session.delete(sesion)
@@ -429,11 +510,31 @@ def create_app():
             return jsonify({'message': 'Sesión expirada. Por favor, inicia sesión nuevamente.'}), 401
 
         # Actualizar última actividad y extender la sesión
-        sesion.ultima_actividad = tiempo_actual
-        sesion.fecha_expiracion = tiempo_actual + timedelta(hours=2)  # Extiende la sesión 1 hora más
+        sesion.ultima_actividad = obtener_hora_colombia()
+        sesion.fecha_expiracion = obtener_hora_colombia() + timedelta(hours=2)  # Extiende la sesión 2 horas
         #print(f"DEBUG: Última actividad actualizada. Nueva expiración: {sesion.fecha_expiracion}")
         db.session.commit()
 
+
+
+
+    @app.route('/api/logout', methods=['POST'])
+    def logout():
+        try:
+            token = request.headers.get('Authorization').replace('Bearer ', '')
+            if not token:
+                return jsonify({"message": "Token no proporcionado"}), 400
+
+            sesion = SesionActiva.query.filter_by(token=token).first()
+            if not sesion:
+                return jsonify({"message": "Sesión no encontrada"}), 404
+
+            db.session.delete(sesion)
+            db.session.commit()
+            return jsonify({"message": "Sesión cerrada correctamente"}), 200
+        except Exception as e:
+            print(f"Error al cerrar sesión: {str(e)}")
+            return jsonify({"error": "Error al cerrar sesión"}), 500
 
 
     @app.route('/api/productos', methods=['GET', 'POST'])
@@ -865,7 +966,7 @@ def create_app():
                 if fecha_ingreso:
                     fecha_ingreso = datetime.strptime(fecha_ingreso, '%Y-%m-%d %H:%M:%S')
                 else:
-                    fecha_ingreso = obtener_hora_utc()
+                    fecha_ingreso = obtener_hora_colombia()
 
                 producto = Producto.query.filter_by(codigo=codigo).first()
                 if not producto:
@@ -1533,7 +1634,7 @@ def create_app():
                 bodega_origen_id=bodega_origen_obj.id,
                 bodega_destino_id=bodega_destino_obj.id,
                 cantidad=cantidad,
-                fecha=obtener_hora_utc(),
+                fecha=obtener_hora_colombia(),
             )
             db.session.add(nuevo_movimiento)
 
@@ -1620,7 +1721,7 @@ def create_app():
                     bodega_origen_id=bodega_origen_obj.id,
                     bodega_destino_id=bodega_destino_obj.id,
                     cantidad=cantidad,
-                    fecha=obtener_hora_utc(),
+                    fecha=obtener_hora_colombia(),
                     descripcion=f"Traslado de {cantidad} unidades de {codigo} de {bodega_origen} a {bodega_destino}"
                 )
                 db.session.add(nuevo_movimiento)
@@ -2622,94 +2723,6 @@ def create_app():
             print(f"Error al obtener usuarios: {str(e)}")
             return jsonify({'error': 'Error al obtener usuarios'}), 500
 
-    #ENDPOINTS LOGIN
-    @app.route('/api/login', methods=['POST'])
-    def login():
-        try:
-            data = request.get_json()
-
-            # 📌 Validar datos de entrada
-            if not data.get('usuario') or not data.get('password'):
-                return jsonify({'message': 'Faltan datos para el inicio de sesión'}), 400
-                
-
-            # 🔍 Buscar usuario en la BD
-            usuario = Usuario.query.filter_by(usuario=data['usuario']).first()
-            if not usuario or not check_password_hash(usuario.password, data['password']):
-                return jsonify({'message': 'Credenciales incorrectas'}), 401
-
-            # 🚫 Validar usuario y contraseña
-            if not usuario or not check_password_hash(usuario.password, data['password']):
-                return jsonify({'message': 'Credenciales incorrectas'}), 401
-
-            # 🚫 Validar si el usuario está activo
-            if not usuario.activo:
-                return jsonify({'message': 'Este usuario está inactivo. Contacta al administrador.'}), 409
-
-            # Eliminar sesiones activas existentes del usuario
-            sesiones_existentes = SesionActiva.query.filter_by(usuario_id=usuario.id).all()
-            if sesiones_existentes:
-                for sesion in sesiones_existentes:
-                    db.session.delete(sesion)
-                db.session.commit()
-                print(f"DEBUG: {len(sesiones_existentes)} sesiones antiguas eliminadas para el usuario {usuario.usuario}")
-            else:
-                print(f"DEBUG: No había sesiones activas previas para el usuario {usuario.usuario}")
-
-            # 🔥 Validar si ya se alcanzó el límite global de sesiones activas
-            sesiones_activas_totales = SesionActiva.query.count()
-            if sesiones_activas_totales >= MAX_SESIONES_CONCURRENTES:
-                return jsonify({'message': f'Se ha alcanzado el número máximo de sesiones activas permitidas ({MAX_SESIONES_CONCURRENTES}). Intenta más tarde.'}), 403
-
-            # 🔑 Generar token y crear nueva sesión activa
-            token = generate_token()
-            fecha_expiracion = obtener_hora_utc() + timedelta(hours=2)  # ⏳ Expira en 2 horas
-
-            nueva_sesion = SesionActiva(
-                usuario_id=usuario.id,
-                token=token,
-                ultima_actividad=obtener_hora_utc(),
-                fecha_expiracion=fecha_expiracion
-            )
-            db.session.add(nueva_sesion)
-            db.session.commit()
-            print(f"DEBUG: Nueva sesión creada para {usuario.usuario}. Expiración: {nueva_sesion.fecha_expiracion}")
-
-            # ✅ Respuesta exitosa
-            return jsonify({
-                'id': usuario.id,
-                'usuario': usuario.usuario,
-                'nombres': usuario.nombres,
-                'apellidos': usuario.apellidos,
-                'tipo_usuario': usuario.tipo_usuario,
-                'token': token,
-                'message': 'Inicio de sesión exitoso'
-            }), 200
-
-        except Exception as e:
-            print(f"Error en login: {str(e)}")
-            db.session.rollback()  # Deshacer cambios en caso de error
-            return jsonify({'error': 'Error al iniciar sesión'}), 500
-
-
-    @app.route('/api/logout', methods=['POST'])
-    def logout():
-        try:
-            token = request.headers.get('Authorization').replace('Bearer ', '')
-            if not token:
-                return jsonify({"message": "Token no proporcionado"}), 400
-
-            sesion = SesionActiva.query.filter_by(token=token).first()
-            if not sesion:
-                return jsonify({"message": "Sesión no encontrada"}), 404
-
-            db.session.delete(sesion)
-            db.session.commit()
-            return jsonify({"message": "Sesión cerrada correctamente"}), 200
-        except Exception as e:
-            print(f"Error al cerrar sesión: {str(e)}")
-            return jsonify({"error": "Error al cerrar sesión"}), 500
-
 
     #ENDPOINTS RELATIVOS A PRODUCCION
 
@@ -2745,7 +2758,7 @@ def create_app():
                 bodega_produccion_id=data['bodega_produccion'],  # Se asigna la bodega seleccionada por el usuario
                 creado_por=data['creado_por'],
                 numero_orden=nuevo_numero_orden,
-                fecha_creacion=obtener_hora_utc()   # Asignar la fecha de creación
+                fecha_creacion=obtener_hora_colombia()   # Asignar la fecha de creación
             )
             db.session.add(nueva_orden)
             db.session.commit()
@@ -2905,16 +2918,16 @@ def create_app():
 
             # ⏳ Registrar fechas y el operador si el estado cambia
             if nuevo_estado == "Lista para Producción" and not orden.fecha_lista_para_produccion:
-                orden.fecha_lista_para_produccion = obtener_hora_utc()
+                orden.fecha_lista_para_produccion = obtener_hora_colombia()
 
             if nuevo_estado == "En Producción":
                 if not orden.fecha_inicio:
-                    orden.fecha_inicio = obtener_hora_utc()
+                    orden.fecha_inicio = obtener_hora_colombia()
                 if usuario_id:
                     orden.en_produccion_por = usuario_id  # Guardar quién inicia la producción
 
             if nuevo_estado == "Finalizada" and not orden.fecha_finalizacion:
-                orden.fecha_finalizacion = obtener_hora_utc()
+                orden.fecha_finalizacion = obtener_hora_colombia()
 
             orden.estado = nuevo_estado
             db.session.commit()
@@ -3012,7 +3025,7 @@ def create_app():
 
             if cantidad_pendiente <= 0:
                 orden.estado = "Finalizada"
-                orden.fecha_finalizacion = obtener_hora_utc()
+                orden.fecha_finalizacion = obtener_hora_colombia()
             else:
                 orden.estado = "En Producción-Parcial"
 
@@ -3052,7 +3065,7 @@ def create_app():
 
             # ✅ Finalizar la orden
             orden.estado = "Finalizada"
-            orden.fecha_finalizacion = obtener_hora_utc()
+            orden.fecha_finalizacion = obtener_hora_colombia()
 
             db.session.commit()
             return jsonify({'message': 'Entrega total registrada y orden finalizada con éxito.'}), 200
@@ -3082,7 +3095,7 @@ def create_app():
 
             # Actualizar el estado de la orden
             orden.estado = "En Producción"
-            orden.fecha_inicio = obtener_hora_utc()
+            orden.fecha_inicio = obtener_hora_colombia()
             db.session.commit()
 
             return jsonify({'message': 'Estado de la orden actualizado a En Producción exitosamente.'}), 200
@@ -3118,7 +3131,7 @@ def create_app():
                 producto_base_id=orden.producto_compuesto_id,
                 cantidad_producida=cantidad_producida,
                 bodega_destino_id=bodega_destino_id,
-                fecha_registro=obtener_hora_utc(),
+                fecha_registro=obtener_hora_colombia(),
                 registrado_por=usuario_id
             )
             db.session.add(detalle)
@@ -3127,7 +3140,7 @@ def create_app():
             orden.cantidad_paquetes -= cantidad_producida
             if orden.cantidad_paquetes == 0:
                 orden.estado = "Finalizada"
-                orden.fecha_finalizacion = obtener_hora_utc()
+                orden.fecha_finalizacion = obtener_hora_colombia()
             else:
                 orden.estado = "En Producción-Parcial"
 
@@ -3172,14 +3185,14 @@ def create_app():
                 bodega_origen_id=orden.bodega_produccion_id,
                 bodega_destino_id=1,  # ID de la bodega final
                 cantidad=0,  # Cantidad en 0
-                fecha=obtener_hora_utc(),
+                fecha=obtener_hora_colombia(),
                 descripcion=f"Producción completa por cierre forzado registrada para la orden {orden.numero_orden}."
             )
             db.session.add(movimiento_entrada)
 
             # Cambiar el estado de la orden a "Finalizada"
             orden.estado = "Finalizada"
-            orden.fecha_finalizacion = obtener_hora_utc()
+            orden.fecha_finalizacion = obtener_hora_colombia()
             orden.comentario_cierre_forzado = comentario_final  # Guardar el comentario
 
             db.session.commit()
@@ -3801,13 +3814,6 @@ def create_app():
             print(f"Error al obtener órdenes para el operador: {str(e)}")
             return jsonify({'error': 'Ocurrió un error al obtener las órdenes para el operador.'}), 500
 
-    @app.after_request
-    def after_request(response):
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
-        return response
-
 
     @app.route('/api/ajuste-inventario', methods=['POST'])
     def ajuste_inventario():
@@ -3834,7 +3840,7 @@ def create_app():
 
             # Generar el consecutivo
             consecutivo = generar_consecutivo()
-            fecha_actual = obtener_hora_utc()  # Obtener la fecha UTC una vez para todas las inserciones
+            fecha_actual = obtener_hora_colombia()  # Obtener la fecha UTC una vez para todas las inserciones
 
             for producto_data in data['productos']:
                 # Validar estructura de cada producto
@@ -4152,13 +4158,42 @@ def create_app():
             print(f"Error al generar PDF de ajustes: {str(e)}")
             return jsonify({'error': 'Ocurrió un error al generar el PDF.'}), 500
 
+ 
+    @app.after_request
+    def after_request(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type'
+        return response
+
+
+    # Rutas estáticas (prioridad baja)
+    @app.route('/')
+    def serve_frontend():
+        return send_from_directory(app.static_folder, 'index.html')
+
+    @app.route('/<path:path>', methods=['GET'])
+    def serve_static(path):
+        full_path = os.path.join(app.static_folder, path)
+        if os.path.exists(full_path) and not path.startswith('api/'):
+            return send_from_directory(app.static_folder, path)
+        return send_from_directory(app.static_folder, 'index.html')
+
+    @app.route('/debug-static')
+    def debug_static():
+        try:
+            files = os.listdir(app.static_folder)
+            return jsonify({'static_files': files, 'static_folder': app.static_folder})
+        except Exception as e:
+            return jsonify({'error': str(e), 'static_folder': app.static_folder})
 
     return app
 
+# Crear la aplicación directamente en el nivel superior
+app = create_app()
 
 if __name__ == '__main__':
-    #prueba_horas()  # Dejamos esto comentado como en tu original
-    app = create_app()
+        
     with app.app_context():
         db.create_all()  # Crea las tablas si no existen
     port = int(os.getenv('PORT', 5000))  # Usa $PORT si existe (Railway), o 5000 por defecto

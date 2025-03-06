@@ -699,6 +699,8 @@ def create_app():
 
             # Agregar los nuevos materiales
             for material in data['materiales']:
+                if material['cantidad'] <= 0:
+                    return jsonify({'error': f'La cantidad debe ser mayor a 0 para el producto base ID {material["producto_base_id"]}'}), 400
                 producto_base = db.session.get(Producto, material['producto_base_id'])
 
                 if not producto_base:

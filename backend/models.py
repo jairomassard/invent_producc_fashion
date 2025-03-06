@@ -22,8 +22,8 @@ class Producto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     codigo = db.Column(db.String(20), unique=True, nullable=False)
     nombre = db.Column(db.String(255), nullable=False)
-    peso_total_gr = db.Column(db.Integer)
-    peso_unidad_gr = db.Column(db.Integer)
+    peso_total_gr = db.Column(db.Numeric(10,2))  # Cambiado a Numeric
+    peso_unidad_gr = db.Column(db.Numeric(10,2))  # Cambiado a Numeric
     codigo_barras = db.Column(db.String(50))
     es_producto_compuesto = db.Column(db.Boolean, default=False)
     peso_unitario_calculado = db.Column(db.Numeric)
@@ -61,9 +61,9 @@ class MaterialProducto(db.Model):
         db.ForeignKey('productos.id', ondelete='CASCADE'),
         nullable=False
     )
-    cantidad = db.Column(db.Numeric, nullable=False)
-    peso_unitario = db.Column(db.Numeric, nullable=False)
-
+    cantidad = db.Column(db.Numeric(10,2), nullable=False)
+    peso_unitario = db.Column(db.Numeric(10,2), nullable=False)
+    
 # Modelo Bodega
 class Bodega(db.Model):
     __tablename__ = 'bodegas'

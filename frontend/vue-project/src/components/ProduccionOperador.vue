@@ -111,10 +111,10 @@
         <tbody>
           <tr v-for="componente in componentes" :key="componente.nombre">
             <td>{{ componente.nombre }}</td>
-            <td>{{ componente.cant_x_paquete }}</td>
-            <td>{{ componente.cantidad_total }}</td>
-            <td>{{ componente.peso_x_paquete }}</td>
-            <td>{{ componente.peso_total }}</td>
+            <td>{{ Number(componente.cant_x_paquete).toFixed(2) }}</td>
+            <td>{{ Number(componente.cantidad_total).toFixed(2) }}</td>
+            <td>{{ Number(componente.peso_x_paquete).toFixed(2) }}</td>
+            <td>{{ Number(componente.peso_total).toFixed(2) }}</td>
           </tr>
         </tbody>
       </table>
@@ -338,8 +338,8 @@ export default {
       this.entregaParcialHabilitada = true;
     },
     async registrarEntregaParcial() {
-      if (!this.cantidadParcial || this.cantidadParcial <= 0) {
-        alert("Por favor, ingrese una cantidad válida.");
+      if (!Number.isInteger(this.cantidadParcial) || this.cantidadParcial <= 0) {
+        alert("La cantidad parcial debe ser un número entero positivo.");
         return;
       }
 

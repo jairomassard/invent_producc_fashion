@@ -80,9 +80,9 @@
             <td>{{ componente.nombre }}</td>
             <td>{{ componente.cantidad_requerida }}</td>
             <td>{{ nuevaOrden.cantidad_paquetes }}</td>
-            <td>{{ componente.cantidad_total }}</td>
+            <td>{{ componente.cantidad_total.toFixed(2) }}</td>
             <td>{{ componente.peso_unitario }}</td>
-            <td>{{ componente.peso_total }}</td>
+            <td>{{ componente.peso_total.toFixed(2) }}</td>
           </tr>
         </tbody>
       </table>
@@ -204,9 +204,9 @@
           <tr v-for="componente in componentes" :key="componente.nombre">
             <td>{{ componente.nombre }}</td>
             <td>{{ componente.cant_x_paquete }}</td>
-            <td>{{ componente.cantidad_total }}</td>
+            <td>{{ componente.cantidad_total.toFixed(2) }}</td>
             <td>{{ componente.peso_x_paquete }}</td>
-            <td>{{ componente.peso_total }}</td>
+            <td>{{ componente.peso_total.toFixed(2) }}</td>
           </tr>
         </tbody>
       </table>
@@ -458,9 +458,9 @@ export default {
         this.componentes = response.data.materiales.map((componente) => ({
           nombre: componente.producto_base_nombre,
           cantidad_requerida: componente.cantidad,
-          cantidad_total: componente.cantidad * this.nuevaOrden.cantidad_paquetes,
+          cantidad_total: (componente.cantidad * this.nuevaOrden.cantidad_paquetes).toFixed(2),
           peso_unitario: componente.peso_unitario,
-          peso_total: componente.cantidad * this.nuevaOrden.cantidad_paquetes * componente.peso_unitario,
+          peso_total: (componente.cantidad * this.nuevaOrden.cantidad_paquetes * componente.peso_unitario).toFixed(2),
         }));
         this.tablaRevisarVisible = true;
       } catch (error) {
@@ -469,6 +469,10 @@ export default {
       }
     },
     async crearOrden() {
+        if (!Number.isInteger(this.nuevaOrden.cantidad_paquetes) || this.nuevaOrden.cantidad_paquetes < 1) {
+          alert("La cantidad de paquetes debe ser un número entero positivo.");
+          return;
+        }
         try {
             const usuarioLogueado = localStorage.getItem("usuario_id"); // Asume que el ID del usuario logueado está en localStorage
             const response = await apiClient.post("/api/ordenes-produccion", {

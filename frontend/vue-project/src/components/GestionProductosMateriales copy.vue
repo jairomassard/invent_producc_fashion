@@ -73,13 +73,13 @@
             </div>
             <div>
                 <label for="peso_total">Peso Total en Gramos:</label>
-                <input v-model.number="producto.peso_total_gr" id="peso_total" type="number" step="0.01"
+                <input v-model.number="producto.peso_total_gr" id="peso_total" type="number" 
                     :required="!producto.es_producto_compuesto" 
                     :disabled="producto.es_producto_compuesto" />
             </div>
             <div>
                 <label for="peso_unidad">Peso por Unidad en Gramos:</label>
-                <input v-model.number="producto.peso_unidad_gr" id="peso_unidad" type="number" step="0.01"
+                <input v-model.number="producto.peso_unidad_gr" id="peso_unidad" type="number" 
                     :required="!producto.es_producto_compuesto" 
                     :disabled="producto.es_producto_compuesto" />
             </div>
@@ -137,7 +137,7 @@
                         />
                     </td>
                     <td>
-                        <input v-model.number="material.cantidad" type="number" step="0.01" min="0.01" required
+                        <input v-model.number="material.cantidad" type="number" min="1" required 
                             @input="actualizarPesoMaterial(index)" />
                     </td>
                     <td>{{ material.peso_unitario }}</td>
@@ -337,7 +337,7 @@
             }
         },
         actualizarPesoProductoCompuesto() {
-            this.pesoTotalCalculado = this.materiales.reduce((total, material) => total + Number(material.peso_total), 0).toFixed(2);
+            this.pesoTotalCalculado = this.materiales.reduce((total, material) => total + material.peso_total, 0);
             this.producto.peso_total_gr = this.pesoTotalCalculado;
             this.producto.peso_unidad_gr = this.pesoTotalCalculado;
         },
