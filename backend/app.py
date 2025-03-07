@@ -483,13 +483,14 @@ def create_app():
             return
         if request.path.startswith('/images/'):  # Permitir acceso a archivos en /images/
             return
-
+        if request.path.startswith('/static/') or request.path == '/favicon.ico':
+            return
         # Verificación de token para rutas protegidas
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
         #print(f"DEBUG: Token recibido: {token}")
 
         if not token:
-            print("DEBUG: Token no proporcionado")
+            print(f"DEBUG: Token no proporcionado para la ruta: {request.path}")
             return jsonify({'message': 'No autorizado. Debes iniciar sesión.'}), 401
 
         # Buscar la sesión activa en la base de datos
