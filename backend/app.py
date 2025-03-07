@@ -404,7 +404,16 @@ def create_app():
                 return float(obj)
             return super().default(obj)
 
-    app.config['JSON_ENCODER'] = CustomJSONEncoder  # Configuración moderna de Flask
+    # Usar app.json.encoder para Flask moderno
+    app.json_encoder = CustomJSONEncoder  # Para compatibilidad con versiones antiguas
+    app.config['JSON_ENCODER'] = CustomJSONEncoder  # Configuración estándar
+    from flask.json.provider import DefaultJSONProvider
+    class CustomJSONProvider(DefaultJSONProvider):
+        def default(self, obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return super().default(obj)
+    app.json = CustomJSONProvider(app)  # Reemplazar el proveedor JSON por completo
 
     db.init_app(app)
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
