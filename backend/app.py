@@ -398,7 +398,13 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     # Configurar el serializador JSON personalizado
-    app.json_encoder = lambda: json.JSONEncoder(default=custom_json_serializer)
+    class CustomJSONEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return super().default(obj)
+
+    app.config['JSON_ENCODER'] = CustomJSONEncoder  # Configuración moderna de Flask
 
     db.init_app(app)
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
