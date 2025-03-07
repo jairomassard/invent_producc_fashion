@@ -471,18 +471,18 @@ export default {
           }
 
           this.componentes = response.data.materiales.map((componente) => {
-              const cantidad = Number(componente.cantidad); // Forzar a número
-              const pesoUnitario = Number(componente.peso_unitario); // Forzar a número
-              const cantidadPaquetes = Number(this.nuevaOrden.cantidad_paquetes); // Forzar a número
+              const cantidad = Number(componente.cantidad);
+              const pesoUnitario = Number(componente.peso_unitario);
+              const cantidadPaquetes = Number(this.nuevaOrden.cantidad_paquetes);
               if (isNaN(cantidad) || isNaN(pesoUnitario) || isNaN(cantidadPaquetes)) {
                   throw new Error(`Valores no numéricos detectados: cantidad=${componente.cantidad}, peso_unitario=${componente.peso_unitario}`);
               }
               return {
                   nombre: componente.producto_base_nombre,
                   cantidad_requerida: cantidad,
-                  cantidad_total: (cantidad * cantidadPaquetes).toFixed(2),
+                  cantidad_total: cantidad * cantidadPaquetes, // Mantener como número
                   peso_unitario: pesoUnitario,
-                  peso_total: (cantidad * cantidadPaquetes * pesoUnitario).toFixed(2),
+                  peso_total: cantidad * cantidadPaquetes * pesoUnitario, // Mantener como número
               };
           });
           console.log("DEBUG: Componentes procesados:", this.componentes);
@@ -494,7 +494,7 @@ export default {
           alert("No se pudo revisar la orden: " + (error.message || "Error desconocido"));
           this.tablaRevisarVisible = false;
       }
-    },
+  },
     async crearOrden() {
         if (!Number.isInteger(this.nuevaOrden.cantidad_paquetes) || this.nuevaOrden.cantidad_paquetes < 1) {
           alert("La cantidad de paquetes debe ser un número entero positivo.");
