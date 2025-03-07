@@ -32,6 +32,7 @@ from models import (
 )
 # Añadir al inicio después de los imports
 import logging
+import json  # Añadimos json para el serializador
 
 # Configurar logging para Railway
 logging.basicConfig(
@@ -384,11 +385,20 @@ def draw_wrapped_text_traslado(pdf, x, y, text, max_width):
     return y - (len(lines) * 15)
 
 
+# Serializador personalizado para Decimal
+def custom_json_serializer(obj):
+    if isinstance(obj, Decimal):
+        return float(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
 
 def create_app():
     app = Flask(__name__, static_folder='static/dist', static_url_path='')
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URI
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    # Configurar el serializador JSON personalizado
+    app.json_encoder = lambda: json.JSONEncoder(default=custom_json_serializer)
 
     db.init_app(app)
     CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
