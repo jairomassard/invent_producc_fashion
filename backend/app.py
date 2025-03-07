@@ -3,6 +3,7 @@ from flask_cors import CORS
 import csv
 import uuid  # Para generar tokens únicos
 import secrets
+from decimal import Decimal
 from dotenv import load_dotenv
 import os
 from flask import send_file
@@ -2491,7 +2492,7 @@ def create_app():
             elif producto_id:
                 producto = Producto.query.filter_by(id=producto_id, es_producto_compuesto=True).first()
             else:
-                return jsonify({'message': 'Debe proporcionar un código o ID para buscar el producto compuesto.'}), 400
+                return jsonify({'message': 'Debe proporcionar un código o ID...'}), 400
 
             if not producto:
                 return jsonify({'message': 'Producto compuesto no encontrado'}), 404
@@ -2500,23 +2501,27 @@ def create_app():
             materiales_response = []
             for material in materiales:
                 producto_base = db.session.get(Producto, material.producto_base_id)
+                cantidad = float(material.cantidad) if isinstance(material.cantidad, Decimal) else material.cantidad
+                peso_unitario = float(producto_base.peso_unidad_gr) if isinstance(producto_base.peso_unidad_gr, Decimal) else producto_base.peso_unidad_gr
+                peso_total = cantidad * peso_unitario
                 materiales_response.append({
                     'id': material.id,
                     'producto_base_id': material.producto_base_id,
                     'producto_base_codigo': producto_base.codigo,
                     'producto_base_nombre': producto_base.nombre,
-                    'cantidad': material.cantidad,
-                    'peso_unitario': producto_base.peso_unidad_gr,
-                    'peso_total': producto_base.peso_unidad_gr * material.cantidad,
+                    'cantidad': cantidad,
+                    'peso_unitario': peso_unitario,
+                    'peso_total': peso_total,
                 })
 
+            peso_total_gr = float(producto.peso_total_gr) if isinstance(producto.peso_total_gr, Decimal) else producto.peso_total_gr
             return jsonify({
                 'producto': {
                     'id': producto.id,
                     'codigo': producto.codigo,
                     'nombre': producto.nombre,
                     'codigo_barras': producto.codigo_barras,
-                    'peso_total_gr': producto.peso_total_gr,
+                    'peso_total_gr': peso_total_gr,
                 },
                 'materiales': materiales_response
             }), 200

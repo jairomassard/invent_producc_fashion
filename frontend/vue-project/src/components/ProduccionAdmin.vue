@@ -452,20 +452,47 @@ export default {
 
     async revisarOrden() {
       try {
-        const response = await apiClient.get(
-          `/api/productos-compuestos/detalle?id=${this.nuevaOrden.producto_compuesto_id}`
-        );
-        this.componentes = response.data.materiales.map((componente) => ({
-          nombre: componente.producto_base_nombre,
-          cantidad_requerida: componente.cantidad,
-          cantidad_total: (componente.cantidad * this.nuevaOrden.cantidad_paquetes).toFixed(2),
-          peso_unitario: componente.peso_unitario,
-          peso_total: (componente.cantidad * this.nuevaOrden.cantidad_paquetes * componente.peso_unitario).toFixed(2),
-        }));
-        this.tablaRevisarVisible = true;
+          console.log("DEBUG: Iniciando revisión de orden...");
+          console.log("DEBUG: producto_compuesto_id:", this.nuevaOrden.producto_compuesto_id);
+          console.log("DEBUG: cantidad_paquetes:", this.nuevaOrden.cantidad_paquetes);
+
+          if (!this.nuevaOrden.producto_compuesto_id || !this.nuevaOrden.cantidad_paquetes) {
+              alert("Por favor, selecciona un producto y una cantidad válida.");
+              return;
+          }
+
+          const response = await apiClient.get(
+              `/api/productos-compuestos/detalle?id=${this.nuevaOrden.producto_compuesto_id}`
+          );
+          console.log("DEBUG: Respuesta del backend:", JSON.stringify(response.data, null, 2));
+
+          if (!response.data.materiales || !Array.isArray(response.data.materiales)) {
+              throw new Error("La respuesta del backend no contiene materiales válidos.");
+          }
+
+          this.componentes = response.data.materiales.map((componente) => {
+              const cantidad = Number(componente.cantidad); // Forzar a número
+              const pesoUnitario = Number(componente.peso_unitario); // Forzar a número
+              const cantidadPaquetes = Number(this.nuevaOrden.cantidad_paquetes); // Forzar a número
+              if (isNaN(cantidad) || isNaN(pesoUnitario) || isNaN(cantidadPaquetes)) {
+                  throw new Error(`Valores no numéricos detectados: cantidad=${componente.cantidad}, peso_unitario=${componente.peso_unitario}`);
+              }
+              return {
+                  nombre: componente.producto_base_nombre,
+                  cantidad_requerida: cantidad,
+                  cantidad_total: (cantidad * cantidadPaquetes).toFixed(2),
+                  peso_unitario: pesoUnitario,
+                  peso_total: (cantidad * cantidadPaquetes * pesoUnitario).toFixed(2),
+              };
+          });
+          console.log("DEBUG: Componentes procesados:", this.componentes);
+
+          this.tablaRevisarVisible = true;
+          console.log("DEBUG: Tabla de revisión visible");
       } catch (error) {
-        console.error("Error al revisar orden:", error);
-        alert("No se pudo revisar la orden.");
+          console.error("Error al revisar orden:", error);
+          alert("No se pudo revisar la orden: " + (error.message || "Error desconocido"));
+          this.tablaRevisarVisible = false;
       }
     },
     async crearOrden() {
