@@ -2967,43 +2967,38 @@ def create_app():
     @app.route('/api/ordenes-produccion/<int:orden_id>', methods=['GET'])
     def obtener_detalle_orden_produccion(orden_id):
         try:
-            # Obtener la orden de producción por ID
             orden = db.session.get(OrdenProduccion, orden_id)
-
             if not orden:
                 return jsonify({'error': f'Orden de producción con ID {orden_id} no encontrada.'}), 404
 
-            # Obtener detalles del producto compuesto
             materiales = MaterialProducto.query.filter_by(producto_compuesto_id=orden.producto_compuesto_id).all()
-
             materiales_response = [
                 {
                     'producto_base_id': material.producto_base_id,
                     'producto_base_nombre': f"{material.producto_base.codigo} - {material.producto_base.nombre}" if material.producto_base else "Producto base no encontrado",
                     'cantidad_requerida': material.cantidad,
-                    'cant_x_paquete': material.cantidad,  # Cantidad por paquete
+                    'cant_x_paquete': material.cantidad,
                     'peso_unitario': material.peso_unitario,
-                    'peso_x_paquete': material.cantidad * material.peso_unitario,  # Peso por paquete
+                    'peso_x_paquete': material.cantidad * material.peso_unitario,
                     'cantidad_total': material.cantidad * orden.cantidad_paquetes,
                     'peso_total': material.peso_unitario * material.cantidad * orden.cantidad_paquetes,
                 }
                 for material in materiales
             ]
 
-            # Obtener el nombre del usuario que está en producción (en_produccion_por)
             producido_por = None
             if orden.en_produccion_por:
                 usuario = db.session.get(Usuario, orden.en_produccion_por)
                 producido_por = f"{usuario.nombres} {usuario.apellidos}" if usuario else "Usuario no encontrado"
 
-            return jsonify({
+            response = {
                 'orden': {
                     'id': orden.id,
                     'numero_orden': orden.numero_orden,
                     'producto_compuesto_id': orden.producto_compuesto_id,
                     'producto_compuesto_nombre': f"{orden.producto_compuesto.codigo} - {orden.producto_compuesto.nombre}" if orden.producto_compuesto else "Producto compuesto no encontrado",
                     'cantidad_paquetes': orden.cantidad_paquetes,
-                    'peso_total': str(orden.peso_total) if orden.peso_total else None,
+                    'peso_total': orden.peso_total,  # Quitamos str() aquí
                     'estado': orden.estado,
                     'bodega_produccion_id': orden.bodega_produccion_id,
                     'bodega_produccion_nombre': orden.bodega_produccion.nombre if orden.bodega_produccion else "Bodega no encontrada",
@@ -3016,7 +3011,9 @@ def create_app():
                     'comentario_cierre_forzado': orden.comentario_cierre_forzado
                 },
                 'materiales': materiales_response,
-            }), 200
+            }
+            logger.debug(f"Respuesta antes de jsonify: {response}")
+            return jsonify(response), 200
 
         except Exception as e:
             print(f"Error al obtener detalles de la orden de producción: {str(e)}")
