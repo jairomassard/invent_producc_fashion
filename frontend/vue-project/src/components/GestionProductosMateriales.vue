@@ -343,11 +343,16 @@
         },
         async guardarMateriales() {
             try {
+                // Validar que todos los materiales tengan valores válidos
+                if (this.materiales.some(m => !m.producto_base || isNaN(m.cantidad) || m.cantidad <= 0)) {
+                    alert("Todos los materiales deben tener un producto base seleccionado y una cantidad válida mayor a 0.");
+                    return;
+                }
                 const payload = {
                     producto_compuesto_id: this.producto.id,
                     materiales: this.materiales.map(m => ({
                         producto_base_id: m.producto_base,
-                        cantidad: m.cantidad
+                        cantidad: Number(m.cantidad)  // Forzar a número explícitamente
                     }))
                 };
 
@@ -558,6 +563,24 @@
             alert("Ocurrió un error al agregar los materiales. Verifique la conexión y los datos.");
         }
       },
+      async eliminarProducto(productoId) {
+        try {
+            const confirmacion = confirm("¿Estás seguro de que deseas eliminar este producto?");
+            if (!confirmacion) return;
+
+            const response = await apiClient.delete(`/api/productos/${productoId}`);
+            alert(response.data.message);
+
+            // Actualizar la lista de productos después de eliminar
+            this.productos = this.productos.filter(prod => prod.id !== productoId);
+            this.totalProductos -= 1;
+        } catch (error) {
+            console.error("Error al eliminar producto:", error);
+            alert("No se pudo eliminar el producto. Revisa la consola para más detalles.");
+        }
+      },
+
+
       async eliminarProductoCompuesto() {
         try {
             await apiClient.delete(`/api/productos-compuestos/${this.productoSeleccionado}`);

@@ -699,8 +699,15 @@ def create_app():
 
             # Agregar los nuevos materiales
             for material in data['materiales']:
-                if material['cantidad'] <= 0:
+                # Convertir cantidad a float, manejar errores si no es numérico
+                try:
+                    cantidad = float(material['cantidad'])
+                except (ValueError, TypeError):
+                    return jsonify({'error': f'La cantidad debe ser un número válido para el producto base ID {material["producto_base_id"]}'}), 400
+
+                if cantidad <= 0:
                     return jsonify({'error': f'La cantidad debe ser mayor a 0 para el producto base ID {material["producto_base_id"]}'}), 400
+                
                 producto_base = db.session.get(Producto, material['producto_base_id'])
 
                 if not producto_base:
@@ -708,15 +715,15 @@ def create_app():
 
                 # Determinar el peso unitario correctamente
                 if producto_base.es_producto_compuesto:
-                    peso_unitario = producto_base.peso_total_gr  # ✔️ Para productos compuestos
+                    peso_unitario = producto_base.peso_total_gr  or 0 # ✔️ Para productos compuestos
                 else:
-                    peso_unitario = producto_base.peso_unidad_gr  # ✔️ Para productos a granel
+                    peso_unitario = producto_base.peso_unidad_gr or 0 # ✔️ Para productos a granel
 
                 # Crear la relación en la tabla materiales_producto
                 nuevo_material = MaterialProducto(
                     producto_compuesto_id=producto_compuesto_id,
                     producto_base_id=material['producto_base_id'],
-                    cantidad=material['cantidad'],
+                    cantidad=cantidad,  # Usar el valor convertido
                     peso_unitario=peso_unitario
                 )
                 db.session.add(nuevo_material)
@@ -728,9 +735,9 @@ def create_app():
 
             return jsonify({'message': 'Materiales actualizados correctamente'}), 201
         except Exception as e:
-            print(f"Error al agregar material: {str(e)}")
+            print(f"Error al agregar material: {str(e)} - Data recibida: {data}")
             db.session.rollback()
-            return jsonify({'error': 'Error al agregar material'}), 500
+            return jsonify({'error': f'Error al agregar material: {str(e)}'}), 500
 
 
     @app.route('/api/productos/csv', methods=['POST'])
