@@ -169,7 +169,7 @@ export default {
       const csvData = [
         ["factura", "codigo", "nombre", "cantidad", "bodega", "contenedor", "fecha_ingreso"],
         ["FAC001", "GRA05299901000000", "R5 BULK PASTEL YELLOW", "100", "Bodega1", "CONT001", "2024-12-01 10:00:00"],
-        ["ABC123", "GRA05299909000000", "R5 BULK PASTEL LIGTH PINK", "150", "Bodega2", "CONT002", "2024-12-01 10:30:00"],
+        ["FAC002", "GRA05299909000000", "R5 BULK PASTEL LIGTH PINK", "150", "Bodega2", "CONT002", "2024-12-01 10:30:00"],
       ];
       const csvContent =
         "data:text/csv;charset=utf-8," +

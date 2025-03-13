@@ -992,10 +992,14 @@ def create_app():
         errores = []
         for index, row in enumerate(reader, start=1):
             try:
+                factura = row.get('factura', '').strip()
+                if not factura:  # Verifica si la factura está vacía o solo tiene espacios
+                    errores.append(f"Fila {index}: El número de factura es obligatorio y no puede estar vacío.")
+                    continue
+                
                 codigo = row['codigo'].strip()
                 cantidad = int(row['cantidad'])
                 bodega = row['bodega'].strip()
-                factura = row.get('factura', '').strip()
                 contenedor = row.get('contenedor', '').strip()
                 fecha_ingreso = row.get('fecha_ingreso', None)
 
@@ -1287,9 +1291,7 @@ def create_app():
     @app.route('/api/facturas', methods=['GET'])
     def listar_facturas():
         try:
-            facturas = db.session.query(InventarioBodega.factura).filter(
-                InventarioBodega.factura.like('FAC%')
-            ).distinct().all()
+            facturas = db.session.query(InventarioBodega.factura).distinct().all()
             facturas_lista = [factura[0] for factura in facturas if factura[0]]
             return jsonify({'facturas': facturas_lista})
         except Exception as e:
@@ -1312,8 +1314,8 @@ def create_app():
                 (RegistroMovimientos.producto_id == InventarioBodega.producto_id) &
                 (RegistroMovimientos.bodega_destino_id == InventarioBodega.bodega_id)
             ).filter(
-                RegistroMovimientos.tipo_movimiento == 'ENTRADA',
-                InventarioBodega.factura.like('FAC%')
+                RegistroMovimientos.tipo_movimiento == 'ENTRADA'
+                
             )
 
             if factura:
