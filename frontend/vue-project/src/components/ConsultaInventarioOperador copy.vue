@@ -3,12 +3,14 @@
     <h1>Consulta de Inventario de Productos</h1>
 
     <div>
+      <!-- Contenido de la página -->
       <button @click="volverAlMenu" class="btn btn-secondary">Volver al Menú Principal</button>
       <button @click="limpiarPagina" class="btn btn-warning">Limpiar Página</button>
     </div>
 
     <!-- Filtro y Botón Consultar Inventario -->
     <div>
+      <!-- Campo de búsqueda por nombre -->
       <div>
         <label for="nombreFiltro">Buscar por nombre:</label>
         <input 
@@ -20,6 +22,8 @@
           @input="sincronizarPorNombre"
         />
       </div>
+
+      <!-- Campo de búsqueda por código -->
       <div>
         <label for="codigoFiltro">Buscar por código:</label>
         <input 
@@ -30,53 +34,51 @@
           @input="sincronizarCodigoConSelector"
         />
       </div>
+
+      <!-- Selector de productos -->
       <div>
         <label for="productoSelector">Seleccione un producto:</label>
         <select v-model="filtroProducto" id="productoSelector" @change="sincronizarSelectorConCodigo">
           <option value="">Todos</option>
-          <option v-for="producto in productosDisponibles" :key="producto.codigo" :value="producto.codigo">
+          <option 
+            v-for="producto in productosDisponibles" 
+            :key="producto.codigo" 
+            :value="producto.codigo"
+          >
             {{ producto.codigo }} - {{ producto.nombre }}
           </option>
         </select>
       </div>
+
       <div>
         <button @click="consultar">Consultar Inventario</button>
       </div>
     </div>
 
-    <!-- Filtro por Bodega (visible solo después de consulta general) -->
-    <div v-if="mostrarInventario && filtroProducto === '' && codigoDigitado === ''">
-      <label for="filtroBodega">Filtrar por bodega:</label>
-      <select v-model="filtroBodega" id="filtroBodega" @change="filtrarPorBodega">
-        <option value="">Todas</option>
-        <option v-for="bodega in bodegas" :key="bodega" :value="bodega">{{ bodega }}</option>
-      </select>
-    </div>
-
     <!-- Tabla de Inventario -->
     <div v-if="mostrarInventario">
       <h2>Inventario de Productos</h2>
-      <button v-if="productosFiltrados.length" @click="exportarAExcel" class="btn btn-primary">Exportar a Excel</button>
       <table>
         <thead>
           <tr>
             <th>Código</th>
             <th>Nombre</th>
             <th>Total</th>
-            <th v-for="bodega in bodegasMostradas" :key="bodega">{{ bodega }}</th>
+            <th v-for="bodega in bodegas" :key="bodega">{{ bodega }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="producto in productosFiltrados" :key="producto.codigo">
+          <tr v-for="producto in productos" :key="producto.codigo">
             <td>{{ producto.codigo }}</td>
             <td>{{ producto.nombre }}</td>
             <td>{{ producto.cantidad_total }}</td>
-            <td v-for="bodega in bodegasMostradas" :key="bodega">
+            <td v-for="bodega in bodegas" :key="bodega">
               {{ producto.cantidades_por_bodega[bodega] || 0 }}
             </td>
           </tr>
         </tbody>
       </table>
+      <!-- Controles de paginación -->
       <div v-if="filtroProducto === '' && codigoDigitado === ''">
         <button :disabled="paginaActual === 1" @click="cambiarPagina(paginaActual - 1)">Anterior</button>
         <span>Página {{ paginaActual }}</span>
@@ -88,7 +90,6 @@
 
 <script>
 import apiClient from "../services/axios";
-import * as XLSX from "xlsx";
 
 export default {
   name: "ConsultaInventario",
@@ -96,35 +97,33 @@ export default {
     return {
       filtroProducto: "",
       codigoDigitado: "",
-      nombreDigitado: "",
+      nombreDigitado: "", // ✅ Nuevo campo para búsqueda por nombre
       productosDisponibles: [],
       productos: [],
-      productosFiltrados: [], // Productos filtrados por bodega
       bodegas: [],
-      bodegasMostradas: [], // Bodegas a mostrar en la tabla
-      filtroBodega: "", // Filtro de bodega seleccionado
       mostrarInventario: false,
-      paginaActual: 1,
-      limite: 20,
-      todosLosProductos: [], // Para exportar todos los resultados
+      paginaActual: 1, // Página actual
+      limite: 20, // Cantidad de productos por página
     };
   },
   methods: {
     limpiarPagina() {
+      // 🔹 Limpiar los campos de búsqueda
       this.codigoDigitado = "";
-      this.nombreDigitado = "";
+      this.nombreDigitado = ""; // ✅ Limpia el campo de búsqueda por nombre
       this.filtroProducto = "";
-      this.filtroBodega = "";
+
+      // 🔹 Limpiar la tabla de inventario
       this.productos = [];
-      this.productosFiltrados = [];
       this.bodegas = [];
-      this.bodegasMostradas = [];
       this.mostrarInventario = false;
+
+      // 🔹 Reiniciar paginación
       this.paginaActual = 1;
-      this.todosLosProductos = [];
     },
+
     async consultar() {
-      if (this.filtroProducto || this.codigoDigitado || this.nombreDigitado) {
+      if (this.filtroProducto || this.codigoDigitado) {
         await this.consultarProductoEspecifico();
       } else {
         await this.consultarTodosLosProductos();
@@ -132,53 +131,40 @@ export default {
     },
     async consultarProductoEspecifico() {
       try {
-        const codigo = this.filtroProducto || this.codigoDigitado;
-        let url = `/api/inventario/${codigo}`;
-        if (this.nombreDigitado && !codigo) {
-          url = `/api/inventario?nombre=${encodeURIComponent(this.nombreDigitado)}&limit=999999`;
-        }
-        const response = await apiClient.get(url);
-        const data = response.data;
+        const codigo = this.codigoDigitado || this.filtroProducto;
+        const response = await apiClient.get(`/api/inventario/${codigo}`);
+        const { producto, inventario, message } = response.data;
 
-        if (data.message) {
-          alert(data.message);
+        if (message) {
+          alert(message);
           this.mostrarInventario = false;
           this.productos = [];
           this.bodegas = [];
           return;
         }
 
+        // Obtener todas las bodegas existentes
         const bodegasResponse = await apiClient.get("/api/bodegas");
         const todasLasBodegas = bodegasResponse.data.map((b) => b.nombre);
 
+        // Construir datos para la tabla
         this.bodegas = todasLasBodegas;
-        this.bodegasMostradas = todasLasBodegas;
-        if (data.producto) {
-          // Caso de un solo producto
-          this.productos = [{
-            codigo: data.producto.codigo,
-            nombre: data.producto.nombre,
-            cantidad_total: data.inventario.reduce((total, item) => total + item.cantidad, 0),
+        this.productos = [
+          {
+            codigo: producto.codigo,
+            nombre: producto.nombre,
+            cantidad_total: inventario.reduce((total, item) => total + item.cantidad, 0),
             cantidades_por_bodega: todasLasBodegas.reduce((acc, bodega) => {
-              const item = data.inventario.find((i) => i.bodega === bodega);
+              const item = inventario.find((i) => i.bodega === bodega);
               acc[bodega] = item ? item.cantidad : 0;
               return acc;
             }, {}),
-          }];
-        } else {
-          // Caso de búsqueda por nombre (múltiples productos)
-          this.productos = data.productos.map(producto => ({
-            codigo: producto.codigo,
-            nombre: producto.nombre,
-            cantidad_total: producto.cantidad_total,
-            cantidades_por_bodega: producto.cantidades_por_bodega,
-          }));
-        }
-        this.productosFiltrados = [...this.productos];
+          },
+        ];
         this.mostrarInventario = true;
       } catch (error) {
         console.error("Error al consultar inventario específico:", error);
-        alert("Ocurrió un error al consultar el inventario.");
+        alert("Ocurrió un error al consultar el inventario del producto.");
       }
     },
     async consultarTodosLosProductos() {
@@ -187,69 +173,59 @@ export default {
         const response = await apiClient.get(`/api/inventario?offset=${offset}&limit=${this.limite}`);
         const { productos, bodegas } = response.data;
 
+        // Validar respuesta del backend
         if (!productos || productos.length === 0) {
           alert("No se encontró información en el inventario.");
           this.mostrarInventario = false;
           return;
         }
 
+        // Guardar bodegas y construir datos para la tabla
         this.bodegas = bodegas || [];
-        this.bodegasMostradas = [...this.bodegas];
-        this.productos = productos.map((producto) => ({
-          codigo: producto.codigo,
-          nombre: producto.nombre,
-          cantidad_total: producto.cantidad_total,
-          cantidades_por_bodega: { ...producto.cantidades_por_bodega },
-        }));
-        this.productosFiltrados = [...this.productos];
-        this.mostrarInventario = true;
+        this.productos = productos.map((producto) => {
+          const cantidadesPorBodega = this.bodegas.reduce((acc, bodega) => {
+            acc[bodega] = producto.cantidades_por_bodega[bodega] || 0; // Asignar 0 si no hay inventario en la bodega
+            return acc;
+          }, {});
 
-        // Cargar todos los productos para exportación
-        const fullResponse = await apiClient.get("/api/inventario?limit=999999");
-        this.todosLosProductos = fullResponse.data.productos.map((producto) => ({
-          codigo: producto.codigo,
-          nombre: producto.nombre,
-          cantidad_total: producto.cantidad_total,
-          cantidades_por_bodega: { ...producto.cantidades_por_bodega },
-        }));
+          return {
+            codigo: producto.codigo,
+            nombre: producto.nombre,
+            cantidad_total: producto.cantidad_total,
+            cantidades_por_bodega: cantidadesPorBodega,
+          };
+        });
+
+        this.mostrarInventario = true;
       } catch (error) {
         console.error("Error al consultar inventario general:", error);
         alert("Ocurrió un error al consultar el inventario general.");
       }
     },
-    filtrarPorBodega() {
-      if (this.filtroBodega) {
-        this.bodegasMostradas = [this.filtroBodega];
-        this.productosFiltrados = this.productos.map(producto => ({
-          ...producto,
-          cantidad_total: producto.cantidades_por_bodega[this.filtroBodega] || 0,
-        }));
-      } else {
-        this.bodegasMostradas = [...this.bodegas];
-        this.productosFiltrados = [...this.productos];
-      }
-    },
     async cargarProductosDisponibles() {
       try {
         const response = await apiClient.get("/api/productos/completos");
-        this.productosDisponibles = response.data.sort((a, b) => a.codigo.localeCompare(b.codigo));
+        this.productosDisponibles = response.data
+          .sort((a, b) => a.codigo.localeCompare(b.codigo)); // Ordenar por código ascendente
       } catch (error) {
         console.error("[ERROR] Al cargar productos disponibles:", error);
       }
     },
     cambiarPagina(nuevaPagina) {
       this.paginaActual = nuevaPagina;
-      this.consultarTodosLosProductos();
+      this.consultarTodosLosProductos(); // Volver a consultar con la nueva página
     },
     sincronizarPorNombre() {
       const productoEncontrado = this.productosDisponibles.find(p => 
         p.nombre.toLowerCase().includes(this.nombreDigitado.toLowerCase())
       );
+
       if (productoEncontrado) {
         this.filtroProducto = productoEncontrado.codigo;
         this.codigoDigitado = productoEncontrado.codigo;
       }
     },
+
     sincronizarCodigoConSelector() {
       const productoEncontrado = this.productosDisponibles.find(p => p.codigo === this.codigoDigitado);
       if (productoEncontrado) {
@@ -257,6 +233,7 @@ export default {
         this.nombreDigitado = productoEncontrado.nombre;
       }
     },
+
     sincronizarSelectorConCodigo() {
       const productoSeleccionado = this.productosDisponibles.find(p => p.codigo === this.filtroProducto);
       if (productoSeleccionado) {
@@ -268,34 +245,12 @@ export default {
     volverAlMenu() {
         this.$router.push('/menu-operador');
     },
-
-    exportarAExcel() {
-      const dataToExport = this.filtroProducto || this.codigoDigitado || this.nombreDigitado 
-        ? this.productosFiltrados 
-        : this.todosLosProductos;
-
-      const worksheetData = [
-        ["Consulta de Inventario de Productos"],
-        ["Código", "Nombre", "Total", ...this.bodegasMostradas],
-        ...dataToExport.map(producto => [
-          producto.codigo,
-          producto.nombre,
-          producto.cantidad_total,
-          ...this.bodegasMostradas.map(bodega => producto.cantidades_por_bodega[bodega] || 0),
-        ]),
-      ];
-
-      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario");
-      XLSX.writeFile(workbook, `inventario_${new Date().toISOString().slice(0,10)}.xlsx`);
-    },
   },
   mounted() {
     this.cargarProductosDisponibles();
   },
-};
 
+};
 </script>
 
 <style scoped>

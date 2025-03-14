@@ -3511,20 +3511,30 @@ def create_app():
             pdf.drawString(50, 490, f"Bodega de Producción: {orden.bodega_produccion.nombre if orden.bodega_produccion else 'No especificada'}")
             pdf.drawString(50, 470, f"Estado: {orden.estado}")
             pdf.setFont("Helvetica", 10)
-            pdf.drawString(50, 450, f"Fecha de Creación: {orden.fecha_creacion.strftime('%Y-%m-%d %H:%M')}")
-            pdf.drawString(50, 430, f"Fecha Lista para Producción: {orden.fecha_lista_para_produccion.strftime('%Y-%m-%d %H:%M') if orden.fecha_lista_para_produccion else 'N/A'}")
-            pdf.drawString(50, 410, f"Fecha Inicio Producción: {orden.fecha_inicio.strftime('%Y-%m-%d %H:%M') if orden.fecha_inicio else 'N/A'}")
-            pdf.drawString(50, 390, f"Fecha Finalización: {orden.fecha_finalizacion.strftime('%Y-%m-%d %H:%M') if orden.fecha_finalizacion else 'N/A'}")
-            pdf.drawString(50, 370, f"Creado por: {nombre_creador}")
-            pdf.drawString(50, 350, f"Producido por: {nombre_productor}")
+            pdf.drawString(50, 450, f"Creado por: {nombre_creador}")
+            pdf.drawString(50, 430, f"Producido por: {nombre_productor}")
+
+            # Tabla de fechas
+            y = 410
+            pdf.setFont("Helvetica-Bold", 9)
+            pdf.drawString(50, y, "Fecha de Creación")
+            pdf.drawString(200, y, "Fecha Lista para Producción")
+            pdf.drawString(350, y, "Fecha Inicio Producción")
+            pdf.drawString(500, y, "Fecha Finalización")
+            y -= 15
+            pdf.setFont("Helvetica", 9)
+            pdf.drawString(50, y, orden.fecha_creacion.strftime('%Y-%m-%d %H:%M'))
+            pdf.drawString(200, y, orden.fecha_lista_para_produccion.strftime('%Y-%m-%d %H:%M') if orden.fecha_lista_para_produccion else 'N/A')
+            pdf.drawString(350, y, orden.fecha_inicio.strftime('%Y-%m-%d %H:%M') if orden.fecha_inicio else 'N/A')
+            pdf.drawString(500, y, orden.fecha_finalizacion.strftime('%Y-%m-%d %H:%M') if orden.fecha_finalizacion else 'N/A')
+            y -= 10
+            pdf.line(50, y, 742, y)  # Línea divisoria (ancho total - márgenes)
 
             # Tabla de materiales
-            y = 330
-            # Tabla de historial de entregas
+            y -= 20
             pdf.setFont("Helvetica-Bold", 12)
             pdf.drawString(50, y, "Detalle de la Orden")
-
-            y = 310
+            y -= 20
             pdf.setFont("Helvetica-Bold", 10)
             pdf.drawString(50, y, "Componente")
             pdf.drawString(400, y, "Cant.x Paquete")
@@ -3555,28 +3565,31 @@ def create_app():
             for material in materiales_producto:
                 producto_base = db.session.get(Producto, material.producto_base_id)
 
-                # 🔹 Asegurar que se use el mismo peso que en el frontend
                 peso_x_paquete = material.peso_unitario if material.peso_unitario is not None else (
                     producto_base.peso_unitario if producto_base and producto_base.peso_unitario is not None else 0
                 )
                 
                 cantidad_total = material.cantidad * orden.cantidad_paquetes
-                peso_x_paquete = material.cantidad * material.peso_unitario  # Multiplicar el peso unitario por la cantidad requerida por paquete
+                peso_x_paquete = material.cantidad * material.peso_unitario
                 peso_total = cantidad_total * material.peso_unitario
 
                 y = draw_wrapped_text(pdf, 50, y, f"{producto_base.codigo} - {producto_base.nombre}", 350)
                 pdf.drawString(400, y + 10, str(material.cantidad))
                 pdf.drawString(480, y + 10, str(cantidad_total))
-                pdf.drawString(560, y + 10, f"{peso_x_paquete:.2f}")  # ✅ Peso corregido
+                pdf.drawString(560, y + 10, f"{peso_x_paquete:.2f}")
                 pdf.drawString(640, y + 10, f"{peso_total:.2f}")
                 y -= 10
 
-                if y < 50:  # Salto de página si el contenido excede
+                if y < 100:  # Reservar espacio para firmas
                     pdf.showPage()
                     y = 550
 
+            # Línea divisoria después de Detalle de la Orden
+            y -= 10
+            pdf.line(50, y, 742, y)
 
             # Tabla de historial de entregas
+            y -= 20
             pdf.setFont("Helvetica-Bold", 12)
             pdf.drawString(50, y, "Historial de Entregas")
             y -= 20
@@ -3593,22 +3606,44 @@ def create_app():
                 pdf.drawString(350, y, entrega.comentario or "N/A")
                 y -= 20
 
-                if y < 50:  # Salto de página si el contenido excede
+                if y < 100:  # Reservar espacio para firmas
                     pdf.showPage()
                     y = 550
             
-            # Espacio debajo del historial de entregas
-            y -= 20
+            # Espacio y línea divisoria después de Historial de Entregas
+            y -= 10
+            pdf.line(50, y, 742, y)
 
-            # 🔹 Solo mostrar "Cierre Forzado" si hubo un cierre forzado
+            # Solo mostrar "Cierre Forzado" si hubo un cierre forzado
             if tiene_cierre_forzado:
+                y -= 20
                 pdf.setFont("Helvetica-Bold", 12)
                 pdf.drawString(50, y, "Cierre Forzado")
                 y -= 20
 
-            # 🔹 Ajustar texto del cierre forzado (o finalización normal)
+            # Ajustar texto del cierre forzado (o finalización normal)
             pdf.setFont("Helvetica", 10)
-            y = draw_wrapped_text(pdf, 50, y, comentario_cierre_forzado, 700)  # Ajusta el ancho del texto a 700px
+            y = draw_wrapped_text(pdf, 50, y, comentario_cierre_forzado, 700)
+
+            # Agregar firmas al final en una fila horizontal
+            if y < 100:  # Si no hay espacio suficiente, crear nueva página
+                pdf.showPage()
+                y = 550
+
+            pdf.setFont("Helvetica", 12)
+            y -= 40  # Espacio desde el contenido anterior
+
+            # Despachado por (izquierda)
+            pdf.line(50, y, 280, y)  # Línea de 230 puntos
+            pdf.drawString(50, y - 15, "Despachado por")
+
+            # Entregado por (centro)
+            pdf.line(300, y, 530, y)  # Línea de 230 puntos
+            pdf.drawString(300, y - 15, "Entregado por")
+
+            # Recibido (derecha)
+            pdf.line(550, y, 780, y)  # Línea de 230 puntos
+            pdf.drawString(550, y - 15, "Recibido")
 
             # Finalizar y guardar el PDF
             pdf.save()
