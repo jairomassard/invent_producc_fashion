@@ -178,8 +178,8 @@ export default {
     descargarPlantilla() {
       const csvData = [
         ["factura", "codigo", "nombre", "cantidad", "fecha_venta", "bodega"],
-        ["VEN001", "GRA05299901000000", "R5 BULK PASTEL YELLOW", "10", "2024-12-11 10:00:00", "Bodega1"],
-        ["VEN002", "GRA05299909000000", "R5 BULK PASTEL LIGTH PINK", "5", "2024-12-11 11:30:00", "Bodega2"],
+        ["FB1234567", "GRA05299901000000", "R5 BULK PASTEL YELLOW", "10", "2024-12-11 10:00:00", "Bodega1"],
+        ["CC8901234", "GRA05299909000000", "R5 BULK PASTEL LIGTH PINK", "5", "2024-12-11 11:30:00", "Bodega2"],
       ];
       const csvContent =
         "data:text/csv;charset=utf-8," +

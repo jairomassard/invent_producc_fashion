@@ -996,7 +996,7 @@ def create_app():
                 if not factura:  # Verifica si la factura está vacía o solo tiene espacios
                     errores.append(f"Fila {index}: El número de factura es obligatorio y no puede estar vacío.")
                     continue
-                
+
                 codigo = row['codigo'].strip()
                 cantidad = int(row['cantidad'])
                 bodega = row['bodega'].strip()
@@ -2010,6 +2010,15 @@ def create_app():
         for index, row in enumerate(reader, start=1):
             try:
                 factura = row['factura'].strip()
+                # Validar que la factura no esté vacía y comience con "FB" o "CC"
+                if not factura:
+                    errores.append(f"Fila {index}: El número de factura es obligatorio y no puede estar vacío.")
+                    continue
+                if not (factura.startswith('FB') or factura.startswith('CC')):
+                    errores.append(f"Fila {index}: El número de factura debe comenzar con 'FB' o 'CC'.")
+                    continue
+
+                # factura = row['factura'].strip()   # Era como estaba antes de la validadcion de la Factrua que empezara por FB o CC
                 codigo = row['codigo'].strip()
                 nombre = row['nombre'].strip()
                 cantidad = int(row['cantidad'])
