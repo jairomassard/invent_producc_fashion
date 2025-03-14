@@ -3638,7 +3638,7 @@ def create_app():
                 y = 550
 
             pdf.setFont("Helvetica", 10)  # Reducido de 12 a 10
-            y -= 30  # Reducido de 40 a 30
+            y -= 50  # Ajustado de 30 a 50 para bajar más las firmas
 
             # Despachado por (izquierda)
             pdf.line(50, y, 280, y)  # Línea de 230 puntos
