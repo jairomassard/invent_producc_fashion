@@ -1032,8 +1032,23 @@ def create_app():
                     descripcion = f"Cargue inicial con Factura de compra {factura}"
                 else:
                     inventario.cantidad += cantidad
+                    inventario.factura = factura  # Actualizar factura
+                    inventario.contenedor = contenedor
+                    inventario.fecha_ingreso = fecha_ingreso
                     descripcion = f"Ingreso de nueva mercancía con Factura de compra {factura}"
                     print(f"DEBUG - Descripción Generada: {descripcion}")
+
+                # Verificación de duplicados
+                movimiento_existente = RegistroMovimientos.query.filter_by(
+                    producto_id=producto.id,
+                    bodega_destino_id=bodega_obj.id,
+                    tipo_movimiento='ENTRADA',
+                    descripcion=descripcion
+                ).first()
+
+                if movimiento_existente:
+                    errores.append(f"Fila {index}: La factura {factura} ya fue procesada para el producto {codigo} en {bodega}.")
+                    continue
 
                 estado_inventario = EstadoInventario.query.filter_by(
                     producto_id=producto.id, bodega_id=bodega_obj.id
@@ -1306,38 +1321,48 @@ def create_app():
             fecha_inicio = request.args.get('fecha_inicio')
             fecha_fin = request.args.get('fecha_fin')
 
-            query = db.session.query(
-                InventarioBodega.factura,
-                db.func.min(RegistroMovimientos.fecha).label('fecha')
-            ).join(
-                RegistroMovimientos,
-                (RegistroMovimientos.producto_id == InventarioBodega.producto_id) &
-                (RegistroMovimientos.bodega_destino_id == InventarioBodega.bodega_id)
-            ).filter(
-                RegistroMovimientos.tipo_movimiento == 'ENTRADA'
-                
+            # Consulta basada en RegistroMovimientos
+            query = RegistroMovimientos.query.filter(
+                RegistroMovimientos.tipo_movimiento == 'ENTRADA',
+                RegistroMovimientos.descripcion.like('%Factura de compra%')  # Solo movimientos con factura
             )
 
             if factura:
-                query = query.filter(InventarioBodega.factura == factura)
+                query = query.filter(RegistroMovimientos.descripcion.like(f'%{factura}%'))
             if fecha_inicio:
                 query = query.filter(RegistroMovimientos.fecha >= fecha_inicio)
             if fecha_fin:
                 query = query.filter(RegistroMovimientos.fecha <= fecha_fin)
 
-            query = query.group_by(InventarioBodega.factura)
-            resultados = query.order_by(db.func.min(RegistroMovimientos.fecha)).all()
+            # Agrupar por factura extraída de la descripción
+            resultados = query.with_entities(
+                RegistroMovimientos.descripcion,
+                db.func.min(RegistroMovimientos.fecha).label('fecha')
+            ).group_by(RegistroMovimientos.descripcion).order_by(db.func.min(RegistroMovimientos.fecha)).all()
 
             if not resultados:
                 return jsonify([])
 
-            response = [
-                {
-                    'factura': item.factura,
+            # Procesar resultados y filtrar notas de crédito
+            response = []
+            seen_facturas = set()  # Para evitar duplicados
+            for item in resultados:
+                # Extraer el número de factura de la descripción
+                try:
+                    factura_num = item.descripcion.split("Factura de compra ")[-1].strip()
+                except IndexError:
+                    continue  # Si no hay "Factura de compra" en la descripción, omitir
+
+                # Filtrar notas de crédito y duplicados
+                if factura_num.startswith('NC') or factura_num in seen_facturas:
+                    continue
+
+                seen_facturas.add(factura_num)
+                response.append({
+                    'factura': factura_num,
                     'fecha': item.fecha.strftime('%Y-%m-%d %H:%M:%S')
-                }
-                for item in resultados
-            ]
+                })
+
             return jsonify(response)
         except Exception as e:
             print(f"Error al consultar facturas: {str(e)}")
