@@ -1949,49 +1949,49 @@ def create_app():
 
 
 
-@app.route('/api/inventario', methods=['GET'])
-def consultar_inventario_general():
-    try:
-        offset = int(request.args.get('offset', 0))
-        limit = int(request.args.get('limit', 20))
-        nombre = request.args.get('nombre')
+    @app.route('/api/inventario', methods=['GET'])
+    def consultar_inventario_general():
+        try:
+            offset = int(request.args.get('offset', 0))
+            limit = int(request.args.get('limit', 20))
+            nombre = request.args.get('nombre')
 
-        # Consultar todas las bodegas
-        bodegas = Bodega.query.all()
-        lista_bodegas = {bodega.id: bodega.nombre for bodega in bodegas}
+            # Consultar todas las bodegas
+            bodegas = Bodega.query.all()
+            lista_bodegas = {bodega.id: bodega.nombre for bodega in bodegas}
 
-        # Consultar productos con filtros
-        query = Producto.query
-        if nombre:
-            query = query.filter(Producto.nombre.ilike(f"{nombre}%"))
-        
-        # Aplicar paginación siempre
-        productos = query.offset(offset).limit(limit).all()
-        if not productos:
-            return jsonify({'message': 'No se encontraron productos para el filtro especificado'}), 200
+            # Consultar productos con filtros
+            query = Producto.query
+            if nombre:
+                query = query.filter(Producto.nombre.ilike(f"{nombre}%"))
+            
+            # Aplicar paginación siempre
+            productos = query.offset(offset).limit(limit).all()
+            if not productos:
+                return jsonify({'message': 'No se encontraron productos para el filtro especificado'}), 200
 
-        resultado = []
-        for producto in productos:
-            inventario = EstadoInventario.query.filter_by(producto_id=producto.id).all()
-            cantidades_por_bodega = {bodega.nombre: 0 for bodega in bodegas}
-            for inv in inventario:
-                cantidades_por_bodega[lista_bodegas[inv.bodega_id]] = inv.cantidad
-            total_cantidad = sum(cantidades_por_bodega.values())
+            resultado = []
+            for producto in productos:
+                inventario = EstadoInventario.query.filter_by(producto_id=producto.id).all()
+                cantidades_por_bodega = {bodega.nombre: 0 for bodega in bodegas}
+                for inv in inventario:
+                    cantidades_por_bodega[lista_bodegas[inv.bodega_id]] = inv.cantidad
+                total_cantidad = sum(cantidades_por_bodega.values())
 
-            resultado.append({
-                'codigo': producto.codigo,
-                'nombre': producto.nombre,
-                'cantidad_total': total_cantidad,
-                'cantidades_por_bodega': cantidades_por_bodega,
+                resultado.append({
+                    'codigo': producto.codigo,
+                    'nombre': producto.nombre,
+                    'cantidad_total': total_cantidad,
+                    'cantidades_por_bodega': cantidades_por_bodega,
+                })
+
+            return jsonify({
+                'productos': resultado,
+                'bodegas': list(lista_bodegas.values()),
             })
-
-        return jsonify({
-            'productos': resultado,
-            'bodegas': list(lista_bodegas.values()),
-        })
-    except Exception as e:
-        print(f"Error en consultar_inventario_general: {str(e)}")
-        return jsonify({'error': 'Error al consultar el inventario general'}), 500
+        except Exception as e:
+            print(f"Error en consultar_inventario_general: {str(e)}")
+            return jsonify({'error': 'Error al consultar el inventario general'}), 500
     
 
     @app.route('/api/ventas', methods=['POST'])
