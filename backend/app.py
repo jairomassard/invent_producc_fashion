@@ -1905,7 +1905,7 @@ def create_app():
             pdf.setFont("Helvetica", 10)
             y -= 20
             for traslado in traslados:
-                if y < 50:  # Nueva página si no hay espacio
+                if y < 100:  # Reservar espacio para las firmas en una fila (ajustado a 100)
                     pdf.showPage()
                     pdf.setFont("Helvetica", 10)
                     y = 750
@@ -1928,12 +1928,32 @@ def create_app():
                 pdf.drawString(230, y_inicial, str(traslado.cantidad))
 
                 # Dibujar columnas con texto justificado
-                y_nueva = draw_wrapped_text_traslado(pdf, 30, y_inicial, producto.nombre if producto else "Desconocido", 200)  # Ancho 200
-                y_nueva = min(y_nueva, draw_wrapped_text_traslado(pdf, 310, y_inicial, bodega_origen.nombre if bodega_origen else "N/A", 110))  # Ancho 110
-                y_nueva = min(y_nueva, draw_wrapped_text_traslado(pdf, 420, y_inicial, bodega_destino.nombre if bodega_destino else "N/A", 150))  # Ancho 150
+                y_nueva = draw_wrapped_text_traslado(pdf, 30, y_inicial, producto.nombre if producto else "Desconocido", 200)
+                y_nueva = min(y_nueva, draw_wrapped_text_traslado(pdf, 310, y_inicial, bodega_origen.nombre if bodega_origen else "N/A", 110))
+                y_nueva = min(y_nueva, draw_wrapped_text_traslado(pdf, 420, y_inicial, bodega_destino.nombre if bodega_destino else "N/A", 150))
 
                 # Ajustar y para la próxima fila
                 y = y_nueva - 15
+
+            # Agregar firmas al final en una fila horizontal
+            if y < 100:  # Si no hay espacio suficiente, crear nueva página
+                pdf.showPage()
+                y = 750
+
+            pdf.setFont("Helvetica", 12)
+            y -= 40  # Espacio desde la tabla
+
+            # Despachado por (izquierda)
+            pdf.line(30, y, 210, y)  # Línea de 180 puntos
+            pdf.drawString(30, y - 15, "Despachado por")
+
+            # Entregado por (centro)
+            pdf.line(230, y, 410, y)  # Línea de 180 puntos
+            pdf.drawString(230, y - 15, "Entregado por")
+
+            # Recibido (derecha)
+            pdf.line(430, y, 610, y)  # Línea de 180 puntos
+            pdf.drawString(430, y - 15, "Recibido")
 
             pdf.save()
             buffer.seek(0)
