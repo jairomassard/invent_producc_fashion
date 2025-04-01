@@ -4,44 +4,34 @@
       <img src="/images/cabezote.jpg" alt="Cabezote" class="img-fluid w-100" />
     </div>
 
-    <div class="login-wrapper">
-      <div class="login-container">
-        <h2 class="text-center">Inventarios y Producción</h2>
-        <h3 class="text-center mb-4">Inicio de Sesión</h3>
+    <div class="login-container">
+      
+      <h2 class="text-center">Inventarios y Producción</h2>
+      <h3 class="text-center mb-4">Inicio de Sesión</h3>
 
-        <form @submit.prevent="login">
-          <div class="form-group">
-            <label><font-awesome-icon icon="user" /> Usuario</label>
-            <input
-              type="text"
-              v-model="usuario"
-              class="form-control"
-              placeholder="Usuario"
-              required
-            />
-          </div>
-          <div class="form-group password-group">
-            <label><font-awesome-icon icon="lock" /> Contraseña</label>
-            <input
-              :type="showPassword ? 'text' : 'password'"
-              v-model="password"
-              class="form-control"
-              placeholder="Contraseña"
-              required
-            />
-            <font-awesome-icon
-              :icon="showPassword ? 'eye-slash' : 'eye'"
-              class="toggle-password"
-              @click="togglePassword"
-            />
-          </div>
-          <button type="submit" class="btn btn-primary w-100">
-            <font-awesome-icon icon="sign-in-alt" /> Ingresar
-          </button>
-        </form>
+      <form @submit.prevent="login">
+        <div class="form-group">
+          <input
+            type="text"
+            v-model="usuario"
+            class="form-control"
+            placeholder="Usuario"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <input
+            type="password"
+            v-model="password"
+            class="form-control"
+            placeholder="Contraseña"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+      </form>
 
-        <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
-      </div>
+      <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     </div>
   </div>
 </template>
@@ -55,25 +45,28 @@ export default {
       usuario: '',
       password: '',
       errorMessage: '',
-      showPassword: false, // Controla la visibilidad de la contraseña
     };
   },
   methods: {
     async login() {
       try {
+        // Hacer la solicitud al endpoint de login
         const response = await apiClient.post('/api/login', {
           usuario: this.usuario,
           password: this.password,
         });
 
+        // Extraer datos de la respuesta
         const { tipo_usuario, id, nombres, apellidos, token } = response.data;
 
+        // Validar que el token está presente en la respuesta
         if (!token) {
           this.errorMessage = 'Token no recibido. Contacta al administrador.';
           console.error('Error: No se recibió un token en la respuesta del backend.');
           return;
         }
 
+        // Almacenar datos en localStorage
         localStorage.setItem('tipo_usuario', tipo_usuario);
         localStorage.setItem('usuario_id', id);
         localStorage.setItem('nombres', nombres);
@@ -81,8 +74,11 @@ export default {
         localStorage.setItem('token', token);
         console.log('DEBUG: Token almacenado:', token);
 
+        
+        // Emitir evento de éxito
         this.$emit('loginSuccess');
 
+        // Redirigir según el tipo de usuario
         if (tipo_usuario === 'admin') {
           this.$router.push('/menu');
         } else if (tipo_usuario === 'gerente') {
@@ -93,12 +89,16 @@ export default {
           this.errorMessage = 'Rol no reconocido. Contacta al administrador.';
         }
       } catch (error) {
+        // Manejo de errores
         console.error('Error en el inicio de sesión:', error);
         if (error.response?.status === 403) {
+          // 🚨 Error por límite de sesiones concurrentes
           alert("Límite de sesiones alcanzado. Intenta más tarde.");
         } else if (error.response?.status === 409) {
+          // 🚨 Error por usuario inactivo
           alert("Este usuario está inactivo. Contacta al administrador.");
         } else if (error.response?.status === 401) {
+          // 🚨 Error por credenciales incorrectas
           this.errorMessage = "Credenciales incorrectas. Verifica tu usuario y contraseña.";
         } else {
           this.errorMessage =
@@ -106,32 +106,22 @@ export default {
         }
       }
     },
-    togglePassword() {
-      this.showPassword = !this.showPassword; // Alternar visibilidad de la contraseña
-    },
   },
 };
 </script>
 
 <style scoped>
-/* Contenedor principal para centrar vertical y horizontalmente */
-.login-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: calc(100vh - 150px); /* Ajusta según la altura del header */
-}
-
 /* Imagen de encabezado */
 .header-image img {
   width: 100%;
   height: auto;
-  border-bottom: 4px solid #007bff;
+  border-bottom: 4px solid #007bff; /* Barra decorativa */
 }
 
-/* Contenedor del Login */
+/* Contenedor principal del Login */
 .login-container {
   max-width: 400px;
+  margin: 30px auto;
   padding: 30px;
   background-color: #ffffff;
   border-radius: 10px;
@@ -153,21 +143,9 @@ h3 {
   font-weight: normal;
 }
 
-/* Grupos de formulario */
+/* Inputs del formulario */
 .form-group {
   margin-bottom: 20px;
-  text-align: left;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-  color: #333;
-}
-
-.form-group label .fa-icon {
-  margin-right: 8px;
 }
 
 .form-control {
@@ -186,22 +164,8 @@ h3 {
   box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
 }
 
-/* Estilo para el campo de contraseña con ícono */
-.password-group {
-  position: relative;
-}
-
-.toggle-password {
-  position: absolute;
-  right: 10px;
-  top: 60%;
-  transform: translateY(-50%);
-  cursor: pointer;
-  color: #666;
-}
-
 /* Botón de inicio de sesión */
-.btn {
+button {
   padding: 10px;
   font-size: 16px;
   font-weight: bold;
@@ -214,7 +178,7 @@ h3 {
   transition: background-color 0.3s;
 }
 
-.btn:hover {
+button:hover {
   background-color: #0056b3;
 }
 
@@ -230,7 +194,6 @@ h3 {
 @media (max-width: 576px) {
   .login-container {
     padding: 20px;
-    margin: 15px;
   }
 
   h2 {
