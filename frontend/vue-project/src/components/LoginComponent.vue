@@ -11,29 +11,33 @@
 
         <form @submit.prevent="login">
           <div class="form-group">
-            <label><font-awesome-icon icon="user" /> Usuario</label>
-            <input
-              type="text"
-              v-model="usuario"
-              class="form-control"
-              placeholder="Usuario"
-              required
-            />
+            <div class="input-wrapper">
+              <font-awesome-icon icon="user" class="input-icon" />
+              <input
+                type="text"
+                v-model="usuario"
+                class="form-control with-icon"
+                placeholder="Usuario"
+                required
+              />
+            </div>
           </div>
-          <div class="form-group password-group">
-            <label><font-awesome-icon icon="lock" /> Contraseña</label>
-            <input
-              :type="showPassword ? 'text' : 'password'"
-              v-model="password"
-              class="form-control"
-              placeholder="Contraseña"
-              required
-            />
-            <font-awesome-icon
-              :icon="showPassword ? 'eye-slash' : 'eye'"
-              class="toggle-password"
-              @click="togglePassword"
-            />
+          <div class="form-group">
+            <div class="input-wrapper">
+              <font-awesome-icon icon="lock" class="input-icon" />
+              <input
+                :type="showPassword ? 'text' : 'password'"
+                v-model="password"
+                class="form-control with-icon"
+                placeholder="Contraseña"
+                required
+              />
+              <font-awesome-icon
+                :icon="showPassword ? 'eye-slash' : 'eye'"
+                class="toggle-password"
+                @click="togglePassword"
+              />
+            </div>
           </div>
           <button type="submit" class="btn btn-primary w-100">
             <font-awesome-icon icon="sign-in-alt" /> Ingresar
@@ -53,9 +57,9 @@ export default {
   data() {
     return {
       usuario: '',
-      password: '',
+ stiffpassword: '',
       errorMessage: '',
-      showPassword: false, // Controla la visibilidad de la contraseña
+      showPassword: false,
     };
   },
   methods: {
@@ -107,19 +111,18 @@ export default {
       }
     },
     togglePassword() {
-      this.showPassword = !this.showPassword; // Alternar visibilidad de la contraseña
+      this.showPassword = !this.showPassword;
     },
   },
 };
 </script>
 
 <style scoped>
-/* Contenedor principal para centrar vertical y horizontalmente */
-.login-wrapper {
+/* Contenedor principal */
+#login {
+  min-height: 100vh;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: calc(100vh - 150px); /* Ajusta según la altura del header */
+  flex-direction: column;
 }
 
 /* Imagen de encabezado */
@@ -129,9 +132,20 @@ export default {
   border-bottom: 4px solid #007bff;
 }
 
-/* Contenedor del Login */
+/* Contenedor para centrar el formulario */
+.login-wrapper {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 40px; /* Espacio adicional después del cabezote */
+  padding-bottom: 20px; /* Espacio en la parte inferior */
+}
+
+/* Contenedor del formulario */
 .login-container {
   max-width: 400px;
+  width: 100%;
   padding: 30px;
   background-color: #ffffff;
   border-radius: 10px;
@@ -156,18 +170,19 @@ h3 {
 /* Grupos de formulario */
 .form-group {
   margin-bottom: 20px;
-  text-align: left;
 }
 
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: 500;
-  color: #333;
+/* Contenedor para íconos dentro del input */
+.input-wrapper {
+  position: relative;
 }
 
-.form-group label .fa-icon {
-  margin-right: 8px;
+.input-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
 }
 
 .form-control {
@@ -180,21 +195,21 @@ h3 {
   transition: border-color 0.3s;
 }
 
+.with-icon {
+  padding-left: 35px; /* Espacio para el ícono */
+}
+
 .form-control:focus {
   border-color: #007bff;
   outline: none;
   box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
 }
 
-/* Estilo para el campo de contraseña con ícono */
-.password-group {
-  position: relative;
-}
-
+/* Ícono de mostrar/ocultar contraseña */
 .toggle-password {
   position: absolute;
   right: 10px;
-  top: 60%;
+  top: 50%;
   transform: translateY(-50%);
   cursor: pointer;
   color: #666;
