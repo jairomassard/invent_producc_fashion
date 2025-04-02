@@ -2773,7 +2773,8 @@ def create_app():
 
             if 'id' in data and data['id']:
                 # Editar usuario existente
-                usuario = Usuario.db.session.get(data['id'])
+                usuario = db.session.get(Usuario, data['id'])
+                # Estaba esto-->   usuario = Usuario.db.session.get(data['id'])
                 if not usuario:
                     return jsonify({'message': 'Usuario no encontrado'}), 404
             else:
@@ -2781,6 +2782,8 @@ def create_app():
                 usuario = Usuario()
                 if not data.get('password'):
                     return jsonify({'message': 'La contraseña es obligatoria para crear un usuario'}), 400
+                # Asignar fecha de creación solo al crear un nuevo usuario
+                usuario.fecha_creacion = obtener_hora_colombia()
 
             # Actualizar datos del usuario
             usuario.usuario = data['usuario']

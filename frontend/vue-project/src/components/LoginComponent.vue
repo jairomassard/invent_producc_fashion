@@ -1,11 +1,14 @@
 <template>
   <div id="login">
-    <div class="header-image">
-      <img src="/images/cabezote.jpg" alt="Cabezote" class="img-fluid w-100" />
-    </div>
-
     <div class="login-wrapper">
       <div class="login-container">
+        <!-- Logo del cliente -->
+        <div class="logo-container">
+          <img src="/images/logo.jpg" alt="Logo del cliente" class="logo-img" />
+        </div>
+        <!-- Franja azul -->
+        <div class="blue-strip"></div>
+        <!-- Títulos -->
         <h2 class="text-center">Inventarios y Producción</h2>
         <h3 class="text-center mb-4">Inicio de Sesión</h3>
 
@@ -57,7 +60,7 @@ export default {
   data() {
     return {
       usuario: '',
- stiffpassword: '',
+      password: '',
       errorMessage: '',
       showPassword: false,
     };
@@ -122,37 +125,52 @@ export default {
 #login {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
-}
-
-/* Imagen de encabezado */
-.header-image img {
-  width: 100%;
-  height: auto;
-  border-bottom: 4px solid #007bff;
+  justify-content: center; /* Centrado horizontal */
+  align-items: center; /* Centrado vertical */
+  background-color: #ffffff; /* Fondo blanco */
 }
 
 /* Contenedor para centrar el formulario */
 .login-wrapper {
-  flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding-top: 40px; /* Espacio adicional después del cabezote */
-  padding-bottom: 20px; /* Espacio en la parte inferior */
+  width: 100%;
+  height: 100vh; /* Ocupa toda la altura de la pantalla */
 }
 
 /* Contenedor del formulario */
 .login-container {
-  max-width: 400px;
+  max-width: 450px;
   width: 100%;
-  padding: 30px;
+  padding: 40px 30px;
   background-color: #ffffff;
   border-radius: 10px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3); /* Sombra más pronunciada */
   text-align: center;
 }
 
+/* Logo del cliente */
+.logo-container {
+  margin-bottom: 20px;
+}
+
+.logo-img {
+  max-width: 200px; /* Ajusta según el tamaño real del logo */
+  height: auto;
+  display: block;
+  margin: 0 auto; /* Centrado horizontal */
+}
+
+/* Franja azul */
+.blue-strip {
+  width: 100%;
+  height: 4px;
+  background-color: #007bff;
+  margin-bottom: 20px;
+}
+
+/* Títulos */
 h2 {
   font-size: 24px;
   color: #333;
@@ -163,7 +181,7 @@ h2 {
 h3 {
   font-size: 18px;
   color: #555;
-  margin-bottom: 20px;
+  margin-bottom: 25px;
   font-weight: normal;
 }
 
@@ -187,7 +205,7 @@ h3 {
 
 .form-control {
   width: 100%;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid #ccc;
   border-radius: 5px;
   font-size: 14px;
@@ -196,7 +214,7 @@ h3 {
 }
 
 .with-icon {
-  padding-left: 35px; /* Espacio para el ícono */
+  padding-left: 35px;
 }
 
 .form-control:focus {
@@ -217,7 +235,7 @@ h3 {
 
 /* Botón de inicio de sesión */
 .btn {
-  padding: 10px;
+  padding: 12px;
   font-size: 16px;
   font-weight: bold;
   border: none;
@@ -244,8 +262,12 @@ h3 {
 /* Responsividad */
 @media (max-width: 576px) {
   .login-container {
-    padding: 20px;
+    padding: 30px 20px;
     margin: 15px;
+  }
+
+  .logo-img {
+    max-width: 150px;
   }
 
   h2 {
